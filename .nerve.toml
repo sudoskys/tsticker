@@ -1,0 +1,5 @@
+contributor = "17019f10-3f4d-4cb5-a714-a21f1e83caca"
+language = "English"
+issue_auto_label = true
+issue_auto_tidy = true
+issue_close_with_report = true
