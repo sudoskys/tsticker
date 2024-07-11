@@ -1,0 +1,36 @@
+[project]
+name = "tsticker"
+version = "0.1.0"
+description = "Default template for PDM package"
+authors = [
+    { name = "sudoskys", email = "coldlando@hotmail.com" },
+]
+dependencies = [
+    "magika>=0.5.1",
+    "pytelegrambotapi>=4.21.0",
+    "pydantic-settings>=2.3.4",
+    "pydantic>=2.8.2",
+    "loguru>=0.7.2",
+    "rich>=13.7.1",
+    "asyncclick>=8.1.7.2",
+    "keyring>=25.2.1",
+    "aiohttp>=3.9.5",
+    "emoji>=2.12.1",
+    "telegram-sticker-utils>=0.1.0",
+    "setuptools>=70.3.0",
+]
+requires-python = ">=3.9,<3.13"
+readme = "README.md"
+license = { text = "MIT" }
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
+
+
+[project.scripts]
+tsticker = "tsticker.cli:cli"
