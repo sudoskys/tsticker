@@ -234,7 +234,7 @@ async def sync_index(
     pack.emotes = emote_update
     with index_file.open("w") as f:
         f.write(pack.model_dump_json(indent=2))
-    console.print("[bold green]Synchronization complete![/]")
+    console.print("[bold green]Synchronization completed![/]")
 
 
 @click.command()
