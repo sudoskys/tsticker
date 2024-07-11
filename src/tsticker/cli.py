@@ -147,6 +147,8 @@ async def download_and_write_file(app, sticker, sticker_table_dir):
     sticker_io = await limited_request(app.bot.download_file(file_path=sticker_raw.file_path))
     if not sticker_io:
         return console.print(f"[bold red]Failed to download file: {sticker.file_unique_id}[/]")
+    else:
+        console.print(f"[bold green]Downloaded file: {sticker.file_unique_id}[/]")
     idf = magika.identify_bytes(sticker_io)
     content_type_label = idf.output.ct_label
     file_name = f"{sticker.file_unique_id}.{content_type_label}"
