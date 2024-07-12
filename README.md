@@ -37,6 +37,7 @@ Install necessary dependencies based on your operating system:
 | **Debian-based** | `sudo apt install ffmpeg`<br>`sudo apt install pngquant`                                                                                                       |
 | **macOS**        | `brew install ffmpeg`<br>`brew install pngquant`                                                                                                               |
 | **Windows**      | [Download ffmpeg](https://ffmpeg.org/download.html)<br>[Download pngquant](https://pngquant.org/)<br>Ensure both dependencies are added to your system's PATH. |
+| **Arch Linux**   | `sudo pacman -S ffmpeg`<br>`sudo pacman -S pngquant`                                                                                                           |
 
 ### Installing `tsticker`
 
