@@ -78,6 +78,7 @@ user ID (Get your user ID from [getidsbot](https://t.me/getidsbot)).
 
 ```bash
 mkdir <pack_name>
+cd <pack_name>
 tsticker init -n <pack_name> -t <pack_title>
 ```
 
