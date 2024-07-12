@@ -8,6 +8,9 @@
 stickers. It automatically adjusts image sizes and suggests appropriate emojis based on image names. The tool supports
 both static and animated stickers (in webm format).
 
+Just by adding or deleting files, you can easily update the contents of your sticker pack - making it incredibly
+user-friendly!
+
 ![intro](.github/intro.png)
 
 ## ✨ Key Features
