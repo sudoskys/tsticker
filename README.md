@@ -87,12 +87,25 @@ from [getidsbot](https://t.me/getidsbot)).
 **Example usage:**
 
 ```bash
-mkdir <pack_name>
+mkdir <folder_name>
+cd <folder_name>
 tsticker init -n <pack_name> -t <pack_title>
 ```
 
 - `<pack_name>`: The desired directory name for your sticker pack.
 - `<pack_title>`: The title for your sticker pack.
+
+### Adding or Removing Stickers
+
+To manage your stickers, simply add or remove images or animated files (GIFs/WebMs) in your local directory. After
+making changes, use the following command to synchronize with your Telegram sticker pack:
+
+```bash
+tsticker push
+```
+
+If you encounter any issues, please [create a new Issue](https://github.com/sudoskys/tsticker/issues) on our GitHub
+repository.
 
 ## ⚠️ Important Notes
 
@@ -123,4 +136,3 @@ Enhance your Telegram sticker creation process with `tsticker` and become part o
 sticker management through the command line!
 
 ---
-
