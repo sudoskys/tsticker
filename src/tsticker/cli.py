@@ -3,6 +3,7 @@ import atexit
 import os
 import pathlib
 from asyncio import Semaphore
+from collections import defaultdict
 from typing import Literal, Optional
 
 import asyncclick as click
@@ -98,6 +99,26 @@ def get_credentials() -> Credentials | None:
     return None
 
 
+def delete_same_name_files(sticker_table_dir: pathlib.Path):
+    # Check if the directory exists
+    if not sticker_table_dir.exists():
+        print(f"Directory {sticker_table_dir} does not exist.")
+        return
+
+    # Group files by their base name
+    files_by_name = defaultdict(list)
+    for file in sticker_table_dir.iterdir():
+        if file.is_file():
+            files_by_name[file.stem].append(file)
+
+    # Delete files that have the same name but different extensions
+    for files in files_by_name.values():
+        if len(files) > 1:
+            print(f"Deleting files: {files}")
+            for file in files[1:]:
+                file.unlink()
+
+
 @click.group()
 async def cli():
     """TSticker CLI."""
@@ -141,17 +162,17 @@ async def login(
     console.print(f"[bold green]You are now logged in.[/]")
 
 
-async def download_and_write_file(app, sticker, sticker_table_dir):
+async def download_and_write_file(app, file_id, file_unique_id, sticker_table_dir):
     """下载文件并写入本地文件夹。"""
-    sticker_raw = await limited_request(app.bot.get_file(file_id=sticker.file_id))
+    sticker_raw = await limited_request(app.bot.get_file(file_id=file_id))
     sticker_io = await limited_request(app.bot.download_file(file_path=sticker_raw.file_path))
     if not sticker_io:
-        return console.print(f"[bold red]Failed to download file: {sticker.file_unique_id}[/]")
+        return console.print(f"[bold red]Failed to download file: {file_unique_id}[/]")
     else:
-        console.print(f"[bold green]Downloaded file: {sticker.file_unique_id}[/]")
+        console.print(f"[bold green]Downloaded file: {file_unique_id}[/]")
     idf = magika.identify_bytes(sticker_io)
     content_type_label = idf.output.ct_label
-    file_name = f"{sticker.file_unique_id}.{content_type_label}"
+    file_name = f"{file_unique_id}.{content_type_label}"
     sticker_file = sticker_table_dir.joinpath(file_name)
     sticker_file.write_bytes(sticker_io)
     return sticker_file
@@ -176,7 +197,7 @@ async def sync_index(
 
     sticker_table_dir = index_file.parent.joinpath("stickers")
     sticker_table_dir.mkdir(exist_ok=True)
-
+    delete_same_name_files(sticker_table_dir)
     local_files = {
         f.stem: f
         for f in sticker_table_dir.glob('*')
@@ -216,7 +237,12 @@ async def sync_index(
         for file_id in to_download:
             index += 1
             status.update(f"[bold blue]Downloading file: {file_id}...[/] {index}/{len(to_download)}")
-            await download_and_write_file(app, cloud_files[file_id], sticker_table_dir)
+            await download_and_write_file(
+                app,
+                file_id=cloud_files[file_id].file_id,
+                file_unique_id=cloud_files[file_id].file_unique_id,
+                sticker_table_dir=sticker_table_dir
+            )
         """
         tasks = [
             download_and_write_file(app, cloud_files[file_id], sticker_table_dir)
@@ -375,42 +401,45 @@ async def sync():
 async def create_sticker(
         app: StickerApp,
         sticker_file: pathlib.Path,
-) -> InputSticker:
+) -> InputSticker | None:
     """
     创建贴纸，然后替换本地文件为合法的贴纸文件。
     首先判断是动态还是静态贴纸，然后按照贴纸类型进行处理。
-    :param app:
-    :param sticker_file:
-    :return:
+    :param app: StickerApp
+    :param sticker_file: 本地贴纸文件
+    :return: InputSticker | None
     """
-    sticker_io = sticker_file.read_bytes()
     if app.setting.sticker_type == "custom_emoji":
         scale = 100
     else:
         scale = 512
     sticker_file_path = sticker_file.as_posix()
-    if sticker_utils.is_animated_gif(sticker_file_path):
-        bytes_io, suffix = sticker_utils.make_video_sticker(
-            sticker_file_path,
-            scale=scale,
-            master_edge="width"
-        )
-        return InputSticker(
-            sticker=InputFile(bytes_io),
-            emoji_list=[get_random_emoji_from_text(sticker_file.stem)],
-            format="video"
-        )
-    else:
-        bytes_io, suffix = sticker_utils.make_static_sticker(
-            sticker_file_path,
-            scale=scale,
-            master_edge="width"
-        )
-        return InputSticker(
-            sticker=InputFile(bytes_io),
-            emoji_list=[get_random_emoji_from_text(sticker_file.stem)],
-            format="static"
-        )
+    try:
+        if sticker_utils.is_animated_gif(sticker_file_path):
+            bytes_io, suffix = sticker_utils.make_video_sticker(
+                sticker_file_path,
+                scale=scale,
+                master_edge="width"
+            )
+            return InputSticker(
+                sticker=InputFile(bytes_io),
+                emoji_list=[get_random_emoji_from_text(sticker_file.stem)],
+                format="video"
+            )
+        else:
+            bytes_io, suffix = sticker_utils.make_static_sticker(
+                sticker_file_path,
+                scale=scale,
+                master_edge="width"
+            )
+            return InputSticker(
+                sticker=InputFile(bytes_io),
+                emoji_list=[get_random_emoji_from_text(sticker_file.stem)],
+                format="static"
+            )
+    except Exception as e:
+        console.print(f"[bold red]Failed to create sticker: {e}[/]")
+        return None
 
 
 async def push_to_cloud(
@@ -431,6 +460,7 @@ async def push_to_cloud(
         return
     sticker_table_dir = index_file.parent.joinpath("stickers")
     sticker_table_dir.mkdir(exist_ok=True)
+    delete_same_name_files(sticker_table_dir)
     # 获取本地文件
     local_files = {
         f.stem: f
@@ -485,7 +515,7 @@ async def push_to_cloud(
     ]
     # 如果本地文件和云端文件都存在，但是文件大小不一致，重新上传
     to_update = [
-        file_unique_id
+        (file_unique_id, cloud_files[file_unique_id].file_id)
         for file_unique_id in local_files
         if file_unique_id in cloud_files and local_files[file_unique_id].stat().st_size != cloud_files[
             file_unique_id].file_size
@@ -513,11 +543,15 @@ async def push_to_cloud(
             index += 1
             status.update(f"[bold yellow]Deleting file: {file_id}...[/] {index}/{len(to_delete)}")
             try:
-                await limited_request(
+                success = await limited_request(
                     app.bot.delete_sticker_from_set(sticker=file_id)
                 )
+                assert success, "Request failed"
             except Exception as e:
                 console.print(f"[bold red]Failed to delete sticker: {e}[/]")
+            else:
+                console.print(f"[bold green]Deleted sticker: {file_id}[/]")
+
     # 上传文件到云端
     with console.status(f"[bold yellow]Uploading sticker...[/]", spinner='dots') as status:
         index = 0
@@ -525,30 +559,81 @@ async def push_to_cloud(
             index += 1
             status.update(f"[bold yellow]Uploading sticker: {file_name}...[/] {index}/{len(to_upload)}")
             sticker_file = local_files[file_name]
-            await limited_request(
-                app.bot.add_sticker_to_set(
-                    user_id=app.setting.owner_id,
-                    name=pack.name,
-                    sticker=await create_sticker(app, sticker_file)
+            sticker = await create_sticker(app, sticker_file)
+            if sticker:
+                success = await limited_request(
+                    app.bot.add_sticker_to_set(
+                        user_id=app.setting.owner_id,
+                        name=pack.name,
+                        sticker=sticker
+                    )
                 )
-            )
+                if success:
+                    console.print(f"[bold green]Uploaded sticker: {file_name}[/]")
+                    # 删除本地文件
+                    sticker_file.unlink()
+                else:
+                    console.print(f"[bold red]Failed to upload sticker: {file_name}[/]")
+
     # 更新云端文件
     with console.status("[bold yellow]Updating stickers...[/]", spinner='dots') as status:
         index = 0
-        for file_name in to_update:
+        previous = await limited_request(app.bot.get_sticker_set(pack.name))
+        previous: StickerSet
+        previous_stickers = {
+            sticker.file_unique_id: sticker
+            for sticker in previous.stickers
+        }
+        to_delete_in_update = []
+        for local_file_name, cloud_file_id in to_update:
             index += 1
-            status.update(f"[bold yellow]Updating sticker: {file_name}...[/] {index}/{len(to_update)}")
-            sticker_file = local_files[file_name]
-            await limited_request(
-                app.bot.delete_sticker_from_set(sticker=file_name)
-            )
-            await limited_request(
-                app.bot.add_sticker_to_set(
-                    user_id=app.setting.owner_id,
-                    name=pack.name,
-                    sticker=await create_sticker(app, sticker_file)
+            status.update(
+                f"[bold yellow]Updating sticker: {local_file_name}: {cloud_file_id}...[/] {index}/{len(to_update)}")
+            sticker_file = local_files[local_file_name]
+            try:
+                await limited_request(
+                    app.bot.delete_sticker_from_set(sticker=cloud_file_id)
                 )
+                sticker = await create_sticker(app, sticker_file)
+                if sticker:
+                    await limited_request(
+                        app.bot.add_sticker_to_set(
+                            user_id=app.setting.owner_id,
+                            name=pack.name,
+                            sticker=sticker
+                        )
+                    )
+            except Exception as e:
+                console.print(f"[bold red]Failed to delete sticker: {e}[/]")
+                return False
+            else:
+                to_delete_in_update.append(sticker_file)
+        for file_path in to_delete_in_update:
+            status.update(f"[bold yellow]Deleting file: {file_path.name}...[/]")
+            file_path.unlink()
+        after = await limited_request(app.bot.get_sticker_set(pack.name))
+        after: StickerSet
+        after_stickers = {
+            sticker.file_unique_id: sticker
+            for sticker in after.stickers
+        }
+        # 计算新出现的文件
+        need_re_download = [
+            file_id
+            for file_id in after_stickers
+            if file_id not in previous_stickers
+        ]
+        for file_id in need_re_download:
+            status.update(f"[bold yellow]Updating file: {file_id}...[/]")
+            sticker_file = await download_and_write_file(
+                app,
+                file_id=after_stickers[file_id].file_id,
+                file_unique_id=after_stickers[file_id].file_unique_id,
+                sticker_table_dir=sticker_table_dir
             )
+            if sticker_file:
+                console.print(f"[bold green]Downloaded file: {file_id}[/]")
+
     if to_delete or to_upload or to_update:
         console.print("[bold green]Changes applied![/]")
     return True
@@ -570,8 +655,14 @@ async def push():
                 console.print(f"[bold red]Failed to get sticker set {pack.name}: {e}[/]")
                 return
     console.print(f"[bold cyan]Working on pack:[/] https://t.me/addstickers/{app.setting.pack_name}")
-    if not await push_to_cloud(app=app, index_file=index_file, sticker_set=sticker_set):
-        console.print("[bold red]Failed to push changes![/]")
+    try:
+        if not await push_to_cloud(app=app, index_file=index_file, sticker_set=sticker_set):
+            console.print("[bold red]Push aborted![/]")
+    except Exception as e:
+        from loguru import logger
+        logger.exception(e)
+        console.print(f"[bold red]Push failed: {e}[/]")
+        return
     # 同步索引文件
     with console.status("[bold yellow]Synchronizing index...[/]", spinner='dots'):
         try:
