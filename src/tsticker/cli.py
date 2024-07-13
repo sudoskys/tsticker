@@ -104,18 +104,16 @@ def delete_same_name_files(sticker_table_dir: pathlib.Path):
     if not sticker_table_dir.exists():
         print(f"Directory {sticker_table_dir} does not exist.")
         return
-
     # Group files by their base name
     files_by_name = defaultdict(list)
     for file in sticker_table_dir.iterdir():
         if file.is_file():
             files_by_name[file.stem].append(file)
-
     # Delete files that have the same name but different extensions
     for files in files_by_name.values():
         if len(files) > 1:
-            print(f"Deleting files: {files}")
             for file in files[1:]:
+                console.print(f"[bold yellow]Deleting duplicate file: {file.name}[/]")
                 file.unlink()
 
 
@@ -513,8 +511,8 @@ async def push_to_cloud(
         sticker.file_id
         for file_id, sticker in cloud_files.items() if file_id not in local_files
     ]
-    # 如果本地文件和云端文件都存在，但是文件大小不一致，重新上传
-    to_update = [
+    # 如果本地文件和云端文件都存在，但是文件大小不一致，重新下载
+    to_fix = [
         (file_unique_id, cloud_files[file_unique_id].file_id)
         for file_unique_id in local_files
         if file_unique_id in cloud_files and local_files[file_unique_id].stat().st_size != cloud_files[
@@ -526,11 +524,11 @@ async def push_to_cloud(
                 app.bot.set_sticker_set_title(pack.name, pack.title)
             )
         console.print(f"[bold yellow]Title updated to: {pack.title}[/]")
-    if to_delete or to_upload or to_update:
+    if to_delete or to_upload or to_fix:
         console.print("[bold yellow]Changes detected:[/]")
         console.print(f"[bold yellow]Files to delete:[/] {len(to_delete)}")
         console.print(f"[bold yellow]Files to upload:[/] {len(to_upload)}")
-        console.print(f"[bold yellow]Files to update:[/] {len(to_update)}")
+        console.print(f"[bold yellow]Files to fix:[/] {len(to_fix)}")
     # 计算最后结果是否超过 120
     if len(cloud_files) - len(to_delete) + len(to_upload) > 120:
         console.print("[bold red]Your wanted operation will exceed the limit of 120 stickers, so it's aborted.[/]")
@@ -576,65 +574,30 @@ async def push_to_cloud(
                     console.print(f"[bold red]Failed to upload sticker: {file_name}[/]")
 
     # 更新云端文件
-    with console.status("[bold yellow]Updating stickers...[/]", spinner='dots') as status:
+    with console.status("[bold yellow]Correcting stickers...[/]", spinner='dots') as status:
         index = 0
-        previous = await limited_request(app.bot.get_sticker_set(pack.name))
-        previous: StickerSet
-        previous_stickers = {
-            sticker.file_unique_id: sticker
-            for sticker in previous.stickers
-        }
-        to_delete_in_update = []
-        for local_file_name, cloud_file_id in to_update:
+        for local_file_name, cloud_file_id in to_fix:
             index += 1
+            need_delete = local_files[local_file_name]
             status.update(
-                f"[bold yellow]Updating sticker: {local_file_name}: {cloud_file_id}...[/] {index}/{len(to_update)}")
-            sticker_file = local_files[local_file_name]
+                f"[bold yellow]Correcting stickers: {local_file_name}: {cloud_file_id}...[/] {index}/{len(to_fix)}")
             try:
-                await limited_request(
-                    app.bot.delete_sticker_from_set(sticker=cloud_file_id)
+                # 删除本地文件
+
+                await download_and_write_file(
+                    app,
+                    file_id=cloud_file_id,
+                    file_unique_id=local_file_name,
+                    sticker_table_dir=sticker_table_dir
                 )
-                sticker = await create_sticker(app, sticker_file)
-                if sticker:
-                    await limited_request(
-                        app.bot.add_sticker_to_set(
-                            user_id=app.setting.owner_id,
-                            name=pack.name,
-                            sticker=sticker
-                        )
-                    )
             except Exception as e:
-                console.print(f"[bold red]Failed to delete sticker: {e}[/]")
+                console.print(f"[bold red]Failed to correct sticker: {local_file_name} {e}[/]")
                 return False
             else:
-                to_delete_in_update.append(sticker_file)
-        for file_path in to_delete_in_update:
-            status.update(f"[bold yellow]Deleting file: {file_path.name}...[/]")
-            file_path.unlink()
-        after = await limited_request(app.bot.get_sticker_set(pack.name))
-        after: StickerSet
-        after_stickers = {
-            sticker.file_unique_id: sticker
-            for sticker in after.stickers
-        }
-        # 计算新出现的文件
-        need_re_download = [
-            file_id
-            for file_id in after_stickers
-            if file_id not in previous_stickers
-        ]
-        for file_id in need_re_download:
-            status.update(f"[bold yellow]Updating file: {file_id}...[/]")
-            sticker_file = await download_and_write_file(
-                app,
-                file_id=after_stickers[file_id].file_id,
-                file_unique_id=after_stickers[file_id].file_unique_id,
-                sticker_table_dir=sticker_table_dir
-            )
-            if sticker_file:
-                console.print(f"[bold green]Downloaded file: {file_id}[/]")
+                need_delete.unlink(missing_ok=True)
+                console.print(f"[bold green]Corrected sticker: {local_file_name}[/]")
 
-    if to_delete or to_upload or to_update:
+    if to_delete or to_upload or to_fix:
         console.print("[bold green]Changes applied![/]")
     return True
 
