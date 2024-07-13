@@ -19,6 +19,7 @@ user-friendly!
 - **Automatic Image Adjustment:** Resizes and adjusts images to meet Telegram's sticker requirements.
 - **Support for Multiple Sticker Types:** Manages both static and animated stickers seamlessly.
 - **git-like Operations:** Follows a workflow similar to Git with `init`, `sync`, and `push` commands.
+- **Support Gif Conversion:** No problem with transparent background GIF conversion.
 
 ## 📋 Prerequisites
 
