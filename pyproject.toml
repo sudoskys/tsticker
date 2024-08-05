@@ -16,7 +16,7 @@ dependencies = [
     "keyring>=25.2.1",
     "aiohttp>=3.9.5",
     "emoji>=2.12.1",
-    "telegram-sticker-utils>=0.1.0",
+    "telegram-sticker-utils>=0.2.0",
     "setuptools>=70.3.0",
 ]
 requires-python = ">=3.9,<3.13"

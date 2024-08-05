@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:7bcc74df2fb6437b6e521c5ccef7522affd8e74df6c7669f0f476bc24d77d580"
+content_hash = "sha256:da5774572bb57a4ea86c2e0ffc586afece8608f976523e57d337104ce9eba353"
 
 [[package]]
 name = "aiohappyeyeballs"
