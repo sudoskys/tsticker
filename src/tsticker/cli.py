@@ -4,6 +4,7 @@ import os
 import pathlib
 from asyncio import Semaphore
 from collections import defaultdict
+from io import BytesIO
 from typing import Literal, Optional
 
 import asyncclick as click
@@ -14,16 +15,15 @@ from rich.console import Console
 from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_helper import session_manager
 from telebot.types import StickerSet, InputSticker, InputFile
-from telegram_sticker_utils import TelegramStickerUtils
+from telegram_sticker_utils import ImageProcessor
 
 from tsticker.core import User, AppSetting
 from tsticker.core import get_bot_user
-from tsticker.core.const import SERVICE_NAME, USERNAME, get_random_emoji_from_text
+from tsticker.core.const import SERVICE_NAME, USERNAME
 from tsticker.core.create import StickerPack, Emote
 
 magika = Magika()
 console = Console()
-sticker_utils = TelegramStickerUtils()
 # 全局请求限制器
 semaphore = Semaphore(20)
 request_interval = 60 / 30  # 每个请求间隔时间为 60 秒 / 30 请求 = 2 秒
@@ -413,28 +413,17 @@ async def create_sticker(
         scale = 512
     sticker_file_path = sticker_file.as_posix()
     try:
-        if sticker_utils.is_animated_gif(sticker_file_path):
-            bytes_io, suffix = sticker_utils.make_video_sticker(
-                sticker_file_path,
-                scale=scale,
-                master_edge="width"
-            )
-            return InputSticker(
-                sticker=InputFile(bytes_io),
-                emoji_list=[get_random_emoji_from_text(sticker_file.stem)],
-                format="video"
-            )
-        else:
-            bytes_io, suffix = sticker_utils.make_static_sticker(
-                sticker_file_path,
-                scale=scale,
-                master_edge="width"
-            )
-            return InputSticker(
-                sticker=InputFile(bytes_io),
-                emoji_list=[get_random_emoji_from_text(sticker_file.stem)],
-                format="static"
-            )
+        sticker = ImageProcessor.make_sticker(
+            input_name=sticker_file.stem,
+            input_data=sticker_file_path,
+            scale=scale,
+            master_edge="width"
+        )
+        return InputSticker(
+            sticker=InputFile(BytesIO(sticker.data)),
+            emoji_list=sticker.emojis,
+            format=sticker.sticker_type
+        )
     except Exception as e:
         console.print(f"[bold red]Failed to create sticker: {e}[/]")
         return None
