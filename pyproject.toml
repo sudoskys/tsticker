@@ -1,6 +1,6 @@
 [project]
 name = "tsticker"
-version = "0.1.1"
+version = "0.1.2"
 description = "Default template for PDM package"
 authors = [
     { name = "sudoskys", email = "coldlando@hotmail.com" },

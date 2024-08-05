@@ -36,12 +36,9 @@ Ensure the following dependencies are installed before using `tsticker`:
 
 Install necessary dependencies based on your operating system:
 
-| System           | Commands                                                                                                                                                       |
-|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Debian-based** | `sudo apt install ffmpeg`<br>`sudo apt install pngquant`                                                                                                       |
-| **macOS**        | `brew install ffmpeg`<br>`brew install pngquant`                                                                                                               |
-| **Windows**      | [Download ffmpeg](https://ffmpeg.org/download.html)<br>[Download pngquant](https://pngquant.org/)<br>Ensure both dependencies are added to your system's PATH. |
-| **Arch Linux**   | `sudo pacman -S ffmpeg`<br>`sudo pacman -S pngquant`                                                                                                           |
+You need install [ImageMagick](https://docs.wand-py.org/en/0.6.12/guide/install.html) before using this CLI.
+
+Install Guide: https://docs.wand-py.org/en/0.6.12/guide/install.html
 
 ### Installing `tsticker`
 
