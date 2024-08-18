@@ -264,8 +264,6 @@ async def sync_index(
 
 
 @click.command()
-@click.option('-n', '--pack-name', required=True, help='Your pack name')
-@click.option('-t', '--pack-title', required=True, help='Your pack title')
 @click.option(
     '-s', '--sticker-type',
     type=click.Choice(['mask', 'regular', 'custom_emoji'], case_sensitive=False),
@@ -273,6 +271,8 @@ async def sync_index(
     default='regular',
     help='Type of the sticker (mask, regular, custom_emoji)'
 )
+@click.option('-n', '--pack-name', required=True, help='Your pack name')
+@click.option('-t', '--pack-title', required=True, help='Your pack title')
 async def init(
         pack_name: str,
         pack_title: str,
@@ -333,6 +333,9 @@ async def init(
             operator_id=str(bot_setting.bot_user.id)
         ).model_dump_json(indent=2)
     )
+    # 创建资源文件夹
+    sticker_table_dir = root.joinpath("stickers")
+    sticker_table_dir.mkdir(exist_ok=True)
     if not sticker_set:
         console.print(f"[bold blue]Empty pack, and index file created:[/] {index_file}")
     else:
