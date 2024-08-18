@@ -25,10 +25,9 @@ user-friendly!
 
 Ensure the following dependencies are installed before using `tsticker`:
 
-| Dependency   | Installation Link                                   |
-|--------------|-----------------------------------------------------|
-| **ffmpeg**   | [Download ffmpeg](https://ffmpeg.org/download.html) |
-| **pngquant** | [Download pngquant](https://pngquant.org/)          |
+| Dependency | Installation Link                                   |
+|------------|-----------------------------------------------------|
+| **ffmpeg** | [Download ffmpeg](https://ffmpeg.org/download.html) |
 
 ## 🛠️ Installation
 
@@ -64,6 +63,9 @@ To create and manage stickers with `tsticker`, you need a Telegram Bot Token. Fo
 3. Follow the instructions to create your bot and acquire the bot token.
 
 The bot token provided by BotFather will be used as your `BotToken`.
+
+We use https://pypi.org/project/keyring/ to manage your tokens, which may require additional steps. If you encounter
+problems, refer to: https://github.com/jaraco/keyring
 
 ## 🚀 Usage
 
@@ -111,13 +113,13 @@ repository.
 
 ## ⚠️ Important Notes
 
-| Note                             | Description                                                                                                                          |
-|----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| **No Support for Tgs Stickers**  | Only `webm` format is supported for animated stickers.                                                                               |
-| **Rate Limiting**                | Each request is throttled to 2 seconds to avoid being blocked by Telegram.                                                           |
-| **Limited Emoji Auto-Selection** | Automatic emoji selection may not work optimally for all languages, primarily supported for English.                                 |
-| **Rate Limits**                  | Avoid excessive uploads in a short period to prevent Telegram from throttling your bot's actions.                                    |
-| **Security**                     | Keep your bot token secure. Stickers can only be managed through your bot or the official @Stickers bot by the sticker pack creator. |
+| Note                             | Description                                                                                                                                                                       |
+|----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **No Support for Tgs Stickers**  | `tgs` format is not supported for this cli.                                                                                                                                       |
+| **Rate Limiting**                | Each request is throttled to 2 seconds to avoid being blocked by Telegram.                                                                                                        |
+| **Limited Emoji Auto-Selection** | Automatic emoji selection may not work optimally for all languages, primarily supported for English. check `github@telegram_sticker_utils:telegram_sticker_utils/core/rules.json` |
+| **Rate Limits**                  | Avoid excessive uploads in a short period to prevent Telegram from throttling your bot's actions.                                                                                 |
+| **Security**                     | Keep your bot token secure. Stickers can only be managed through your bot or the official @Stickers bot by the sticker pack creator.                                              |
 
 ## 📄 License
 
