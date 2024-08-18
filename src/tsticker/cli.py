@@ -567,6 +567,8 @@ async def push_to_cloud(
                     sticker_file.unlink()
                 else:
                     console.print(f"[bold red]Failed to upload sticker: {file_name}[/]")
+            else:
+                console.print(f"[bold red]Failed to create sticker for file: {file_name}[/]")
 
     # 更新云端文件
     with console.status("[bold yellow]Correcting stickers...[/]", spinner='dots') as status:
