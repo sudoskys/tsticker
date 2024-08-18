@@ -422,7 +422,7 @@ async def create_sticker(
         return InputSticker(
             sticker=InputFile(BytesIO(sticker.data)),
             emoji_list=sticker.emojis,
-            format=sticker.sticker_type.__str__()
+            format=sticker.sticker_type
         )
     except Exception as e:
         console.print(f"[bold red]Failed to create sticker: {e}[/]")
