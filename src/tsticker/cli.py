@@ -458,10 +458,13 @@ async def push_to_cloud(
     }
     if not sticker_set:
         # TODO 413 => 'Payload Too Large',
-        stickers = [
-            await create_sticker(app, sticker_file)
-            for sticker_file in local_files.values()
-        ]
+        stickers = []
+        for sticker_file in local_files.values():
+            sticker = await create_sticker(app, sticker_file)
+            if not sticker:
+                console.print(f"[bold red]Failed to create sticker for file: {sticker_file.name}[/]")
+                return False
+            stickers.append(sticker)
         if len(stickers) > 30:
             console.print("[bold red]You have more than 30 stickers, which is too large to create a sticker set.[/]")
             return
