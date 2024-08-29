@@ -54,6 +54,12 @@ python3 -m pip install --user pipx
 python3 -m pipx ensurepath
 ```
 
+If you want to upgrade `tsticker` to the latest version, use the following command:
+
+```bash
+pipx upgrade tsticker
+```
+
 ## 🔑 Bot Token Setup
 
 To create and manage stickers with `tsticker`, you need a Telegram Bot Token. Follow these steps:
@@ -101,7 +107,7 @@ tsticker init -n <pack_name> -t <pack_title>
 
 ### Adding or Removing Stickers
 
-To manage your stickers, simply add or remove images or animated files (GIFs/WebMs) in your local directory. After
+To manage your stickers, simply add or remove images or animated files (GIFs/WebMs) in `<pack>/stickers` directory. After
 making changes, use the following command to synchronize with your Telegram sticker pack:
 
 ```bash
