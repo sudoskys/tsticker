@@ -102,7 +102,7 @@ def get_credentials() -> Credentials | None:
 def delete_same_name_files(sticker_table_dir: pathlib.Path):
     # Check if the directory exists
     if not sticker_table_dir.exists():
-        print(f"Directory {sticker_table_dir} does not exist.")
+        console.print(f"Directory {sticker_table_dir} does not exist.")
         return
     # Group files by their base name
     files_by_name = defaultdict(list)
@@ -492,7 +492,7 @@ async def push_to_cloud(
                 console.print(f"[bold red]Failed to create sticker set: {e}[/]")
                 return False
         return True
-        # 获取云端文件
+    # 获取云端文件
     cloud_files = {
         sticker.file_unique_id: sticker
         for sticker in sticker_set.stickers
