@@ -302,18 +302,28 @@ async def init(
         f"[bold blue]Pack Title:[/] {pack_title}, "
         f"[bold blue]Sticker Type:[/] {sticker_type}"
     )
-    root = pathlib.Path(os.getcwd())
-    directories = [item for item in root.iterdir() if item.is_dir()]
-    # 检查是否存在多个文件夹
-    if len(directories) > 1:
-        console.print("[bold red]Multiple directories found. Please initialize in an empty directory.[/]")
+    root_dir = pathlib.Path(os.getcwd())
+    # 尝试使用 Packname 创建文件夹
+    try:
+        sticker_dir = root_dir.joinpath(pack_name)
+        if sticker_dir.exists():
+            console.print(f"[bold red]Pack directory already exists:[/] {sticker_dir}")
+            return
+        sticker_dir.mkdir(exist_ok=False)
+    except Exception as e:
+        console.print(f"[bold red]Failed to create pack directory: {e}[/]")
         return
-    console.print(f"[bold blue]Pack directory inited:[/] {root}")
-    index_file = root.joinpath("index.json")
-    if index_file.exists():
-        console.print(f"[bold red]Index file already exists:[/] {index_file}")
-        return
-
+    console.print(f"[bold blue]Pack directory inited:[/] {sticker_dir}")
+    index_file = sticker_dir.joinpath("index.json")
+    index_file.write_text(
+        StickerPack.create(
+            title=bot_setting.pack_title,
+            name=bot_setting.make_set_name(bot_setting.pack_name, bot_setting.bot_user.username),
+            sticker_type=bot_setting.sticker_type,
+            operator_id=str(bot_setting.bot_user.id)
+        ).model_dump_json(indent=2)
+    )
+    # 创建 App
     app = StickerApp(bot_setting)
     with console.status("[bold blue]Retrieving sticker...[/]", spinner='dots'):
         try:
@@ -324,17 +334,8 @@ async def init(
             else:
                 console.print(f"[bold red]Failed to get sticker set {bot_setting.pack_name}: {e}[/]")
                 return
-
-    index_file.write_text(
-        StickerPack.create(
-            title=bot_setting.pack_title,
-            name=bot_setting.make_set_name(bot_setting.pack_name, bot_setting.bot_user.username),
-            sticker_type=bot_setting.sticker_type,
-            operator_id=str(bot_setting.bot_user.id)
-        ).model_dump_json(indent=2)
-    )
     # 创建资源文件夹
-    sticker_table_dir = root.joinpath("stickers")
+    sticker_table_dir = sticker_dir.joinpath("stickers")
     sticker_table_dir.mkdir(exist_ok=True)
     if not sticker_set:
         console.print(f"[bold blue]Empty pack, and index file created:[/] {index_file}")

@@ -1,7 +1,7 @@
 [project]
 name = "tsticker"
-version = "0.1.7"
-description = "Default template for PDM package"
+version = "0.1.8"
+description = "Telegram sticker management tool"
 authors = [
     { name = "sudoskys", email = "coldlando@hotmail.com" },
 ]
