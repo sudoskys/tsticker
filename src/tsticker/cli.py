@@ -298,8 +298,8 @@ async def init(
         console.print("[bold red]Pack name must be alphanumeric and underscore only.[/]")
         return
     console.print(
-        f"[bold blue]Initializing with pack name:[/] {pack_name}, "
-        f"[bold blue]Pack Title:[/] {pack_title}, "
+        f"[bold blue]Initializing with pack name:[/] {pack_name}\n"
+        f"[bold blue]Pack Title:[/] {pack_title} \n"
         f"[bold blue]Sticker Type:[/] {sticker_type}"
     )
     root_dir = pathlib.Path(os.getcwd())
@@ -343,6 +343,8 @@ async def init(
         # 同步索引文件
         await sync_index(app, index_file, sticker_set)
     console.print("[bold blue]Initialization completed![/]")
+    console.print(f"\n[bold yellow]Put your stickers in {sticker_table_dir}, [/]")
+    console.print("[bold yellow]then run 'tsticker push' to push your stickers to Telegram.[/]")
 
 
 async def upon_credentials() -> tuple[Optional[StickerPack], Optional[pathlib.Path], Optional[StickerApp]]:
