@@ -167,7 +167,7 @@ async def download_and_write_file(app, file_id, file_unique_id, sticker_table_di
     if not sticker_io:
         return console.print(f"[bold red]Failed to download file: {file_unique_id}[/]")
     else:
-        console.print(f"[bold green]Downloaded file: {file_unique_id}[/]")
+        console.print(f"[bold green]Downloaded sticker: {file_unique_id}[/]")
     idf = magika.identify_bytes(sticker_io)
     content_type_label = idf.output.ct_label
     file_name = f"{file_unique_id}.{content_type_label}"
@@ -218,7 +218,7 @@ async def sync_index(
     ]
 
     for file_path in to_delete:
-        console.print(f"Deleting extra file: {file_path.name}")
+        console.print(f"Cleaning up {file_path.name}")
         file_path.unlink()
 
     for file_path in to_validate:
@@ -234,7 +234,7 @@ async def sync_index(
         index = 0
         for file_id in to_download:
             index += 1
-            status.update(f"[bold blue]Downloading file: {file_id}...[/] {index}/{len(to_download)}")
+            status.update(f"[bold blue]Synchronizing indexes: {file_id}...[/] {index}/{len(to_download)}")
             await download_and_write_file(
                 app,
                 file_id=cloud_files[file_id].file_id,
@@ -431,7 +431,7 @@ async def create_sticker(
             format=sticker.sticker_type
         )
     except Exception as e:
-        console.print(f"[bold red]Failed to create sticker: {e}[/]")
+        console.print(f"[bold red]Failed to create sticker because {e}[/]")
         return None
 
 
@@ -462,12 +462,19 @@ async def push_to_cloud(
     if not sticker_set:
         # TODO 413 => 'Payload Too Large',
         stickers = []
-        for sticker_file in local_files.values():
-            sticker = await create_sticker(app, sticker_file)
-            if not sticker:
-                console.print(f"[bold red]Failed to create sticker for file: {sticker_file.name}[/]")
-                return False
-            stickers.append(sticker)
+        _index = 0
+        _all = len(local_files)
+        with console.status("[bold yellow]Building sticker set...[/]", spinner='dots') as status:
+            for sticker_file in local_files.values():
+                _index += 1
+                status.update(
+                    f"[bold yellow]Creating sticker for file: {sticker_file.name}...[/] {_index}/{_all}"
+                )
+                sticker = await create_sticker(app, sticker_file)
+                if not sticker:
+                    console.print(f"[bold red]Failed to create sticker for file: {sticker_file.name}, stopping...[/]")
+                    return False
+                stickers.append(sticker)
         if len(stickers) > 30:
             console.print("[bold red]You have more than 30 stickers, which is too large to create a sticker set.[/]")
             return
@@ -532,12 +539,13 @@ async def push_to_cloud(
         console.print("[bold red]Your wanted operation will exceed the limit of 120 stickers, so it's aborted.[/]")
         return
     # 删除云端文件
-    with console.status("[bold yellow]Deleting extra files...[/]", spinner='dots') as status:
-        index = 0
+    with console.status("[bold yellow]Deleting stickers from telegram...[/]", spinner='dots') as status:
+        _index = 0
+        _all = len(to_delete)
         for file_id in to_delete:
             # 更新进度条
-            index += 1
-            status.update(f"[bold yellow]Deleting file: {file_id}...[/] {index}/{len(to_delete)}")
+            _index += 1
+            status.update(f"[bold yellow]Deleting stickers for all users: {file_id}...[/] {_index}/{_all}")
             try:
                 success = await limited_request(
                     app.bot.delete_sticker_from_set(sticker=file_id)
@@ -550,10 +558,11 @@ async def push_to_cloud(
 
     # 上传文件到云端
     with console.status(f"[bold yellow]Uploading sticker...[/]", spinner='dots') as status:
-        index = 0
+        _index = 0
+        _all = len(to_upload)
         for file_name in to_upload:
-            index += 1
-            status.update(f"[bold yellow]Uploading sticker: {file_name}...[/] {index}/{len(to_upload)}")
+            _index += 1
+            status.update(f"[bold yellow]Uploading sticker: {file_name}...[/] {_index}/{_all}")
             sticker_file = local_files[file_name]
             sticker = await create_sticker(app, sticker_file)
             if sticker:
@@ -575,12 +584,13 @@ async def push_to_cloud(
 
     # 更新云端文件
     with console.status("[bold yellow]Correcting stickers...[/]", spinner='dots') as status:
-        index = 0
+        _index = 0
+        _all = len(to_fix)
         for local_file_name, cloud_file_id in to_fix:
-            index += 1
+            _index += 1
             need_delete = local_files[local_file_name]
             status.update(
-                f"[bold yellow]Correcting stickers: {local_file_name}: {cloud_file_id}...[/] {index}/{len(to_fix)}")
+                f"[bold yellow]Correcting stickers: {local_file_name}: {cloud_file_id}...[/] {_index}/{_all}")
             try:
                 # 删除本地文件
 
