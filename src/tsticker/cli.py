@@ -7,7 +7,6 @@ from collections import defaultdict
 from io import BytesIO
 from typing import Literal, Optional
 
-import asyncclick as click
 import click
 import keyring
 import requests
@@ -48,7 +47,7 @@ async def check_for_updates():
                 release_notes = package_info['releases'].get(latest_version, [])
                 release_info = release_notes[0] if release_notes else {}
                 description = release_info.get('comment_text', '')
-                click.echo(
+                console.print(
                     f"INFO: tsticker {CURRENT_VERSION} is installed, while {latest_version} is available."
                     f"COMMENT: {description}" if description else ""
                 )
