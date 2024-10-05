@@ -38,8 +38,8 @@ request_interval = 60 / 30  # 每个请求间隔时间为 60 秒 / 30 请求 = 2
 
 
 async def check_for_updates():
-    CURRENT_VERSION = metadata.version("tsticker")
     try:
+        CURRENT_VERSION = metadata.version("tsticker")
         response = requests.get(PYPI_URL)
         if response.status_code == 200:
             package_info = response.json()
