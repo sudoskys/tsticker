@@ -1,5 +1,6 @@
 import asyncio
 import atexit
+import importlib.metadata as metadata
 import os
 import pathlib
 from asyncio import Semaphore
@@ -8,7 +9,9 @@ from io import BytesIO
 from typing import Literal, Optional
 
 import asyncclick as click
+import click
 import keyring
+import requests
 from magika import Magika
 from pydantic import BaseModel, ValidationError, SecretStr, model_validator
 from rich.console import Console
@@ -22,11 +25,33 @@ from tsticker.core import get_bot_user
 from tsticker.core.const import SERVICE_NAME, USERNAME
 from tsticker.core.create import StickerPack, Emote
 
+CURRENT_VERSION = metadata.version("tsticker")
+PYPI_URL = "https://pypi.org/pypi/tsticker/json"
+
 magika = Magika()
 console = Console()
 # 全局请求限制器
 semaphore = Semaphore(20)
 request_interval = 60 / 30  # 每个请求间隔时间为 60 秒 / 30 请求 = 2 秒
+
+
+async def check_for_updates():
+    try:
+        response = requests.get(PYPI_URL)
+        if response.status_code == 200:
+            package_info = response.json()
+            latest_version = package_info['info']['version']
+
+            if latest_version != CURRENT_VERSION:
+                release_notes = package_info['releases'].get(latest_version, [])
+                release_info = release_notes[0] if release_notes else {}
+                description = release_info.get('comment_text', '')
+                click.echo(
+                    f"INFO: tsticker {CURRENT_VERSION} is installed, while {latest_version} is available."
+                    f"COMMENT: {description}" if description else ""
+                )
+    except Exception as e:
+        console.print(f"[bold green]Skipping update check: {type(e)}[/]")
 
 
 async def limited_request(coro):
@@ -618,6 +643,9 @@ async def push():
     pack, index_file, app = await upon_credentials()
     if not pack or not index_file or not app:
         return
+    # 检查仓库更新
+    await check_for_updates()
+    # 获取云端文件
     with console.status("[bold yellow]Retrieving sticker...[/]", spinner='dots'):
         try:
             sticker_set = await limited_request(app.bot.get_sticker_set(pack.name))
