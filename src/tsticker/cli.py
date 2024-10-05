@@ -7,7 +7,7 @@ from collections import defaultdict
 from io import BytesIO
 from typing import Literal, Optional
 
-import asyncclick as click
+import asyncclick
 import keyring
 import requests
 from magika import Magika
@@ -144,24 +144,24 @@ def delete_same_name_files(sticker_table_dir: pathlib.Path):
                 file.unlink()
 
 
-@click.group()
+@asyncclick.group()
 async def cli():
     """TSticker CLI."""
     pass
 
 
-@click.command()
-@click.option(
+@asyncclick.command()
+@asyncclick.option(
     '-t', '--token',
     required=True,
     help='Your BotToken, you can get it from @BotFather, e.g. 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
 )
-@click.option(
+@asyncclick.option(
     '-u', '--user',
     required=True,
     help='Owner id of sticker pack'
 )
-@click.option(
+@asyncclick.option(
     '-p', '--proxy',
     required=False,
     help='Your bot proxy'
@@ -290,16 +290,16 @@ async def sync_index(
     console.print("[bold green]Synchronization completed![/]")
 
 
-@click.command()
-@click.option(
+@asyncclick.command()
+@asyncclick.option(
     '-s', '--sticker-type',
-    type=click.Choice(['mask', 'regular', 'custom_emoji'], case_sensitive=False),
+    type=asyncclick.Choice(['mask', 'regular', 'custom_emoji'], case_sensitive=False),
     required=False,
     default='regular',
     help='Type of the sticker (mask, regular, custom_emoji)'
 )
-@click.option('-n', '--pack-name', required=True, help='Your pack name')
-@click.option('-t', '--pack-title', required=True, help='Your pack title')
+@asyncclick.option('-n', '--pack-name', required=True, help='Your pack name')
+@asyncclick.option('-t', '--pack-title', required=True, help='Your pack title')
 async def init(
         pack_name: str,
         pack_title: str,
@@ -406,7 +406,7 @@ async def upon_credentials() -> tuple[Optional[StickerPack], Optional[pathlib.Pa
     return pack, index_file, app
 
 
-@click.command()
+@asyncclick.command()
 async def sync():
     """Synchronize data."""
     pack, index_file, app = await upon_credentials()
@@ -639,7 +639,7 @@ async def push_to_cloud(
     return True
 
 
-@click.command()
+@asyncclick.command()
 async def push():
     # 检查仓库更新
     await check_for_updates()
