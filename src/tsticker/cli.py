@@ -48,9 +48,10 @@ async def check_for_updates():
                 release_info = release_notes[0] if release_notes else {}
                 description = release_info.get('comment_text', '')
                 console.print(
-                    f"INFO: tsticker {CURRENT_VERSION} is installed, while {latest_version} is available."
-                    f"COMMENT: {description}" if description else ""
+                    f"[bold yellow]INFO:[/] tsticker {CURRENT_VERSION} is installed, while {latest_version} is available."
                 )
+                if description:
+                    console.print(f"[bold blue]COMMENT:[/]\n{description}")
     except Exception as e:
         console.print(f"[bold green]Skipping update check: {type(e)}[/]")
 
@@ -640,12 +641,12 @@ async def push_to_cloud(
 
 @click.command()
 async def push():
+    # 检查仓库更新
+    await check_for_updates()
     """Push local file changes to Telegram."""
     pack, index_file, app = await upon_credentials()
     if not pack or not index_file or not app:
         return
-    # 检查仓库更新
-    await check_for_updates()
     # 获取云端文件
     with console.status("[bold yellow]Retrieving sticker...[/]", spinner='dots'):
         try:
