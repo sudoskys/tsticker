@@ -1,6 +1,5 @@
 import asyncio
 import atexit
-import importlib.metadata as metadata
 import os
 import pathlib
 from asyncio import Semaphore
@@ -25,9 +24,12 @@ from tsticker.core import get_bot_user
 from tsticker.core.const import SERVICE_NAME, USERNAME
 from tsticker.core.create import StickerPack, Emote
 
-CURRENT_VERSION = metadata.version("tsticker")
-PYPI_URL = "https://pypi.org/pypi/tsticker/json"
+try:
+    from importlib import metadata
+except ImportError:  # for Python<3.8
+    import importlib_metadata as metadata
 
+PYPI_URL = "https://pypi.org/pypi/tsticker/json"
 magika = Magika()
 console = Console()
 # 全局请求限制器
@@ -36,12 +38,12 @@ request_interval = 60 / 30  # 每个请求间隔时间为 60 秒 / 30 请求 = 2
 
 
 async def check_for_updates():
+    CURRENT_VERSION = metadata.version("tsticker")
     try:
         response = requests.get(PYPI_URL)
         if response.status_code == 200:
             package_info = response.json()
             latest_version = package_info['info']['version']
-
             if latest_version != CURRENT_VERSION:
                 release_notes = package_info['releases'].get(latest_version, [])
                 release_info = release_notes[0] if release_notes else {}
