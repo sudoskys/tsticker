@@ -7,7 +7,7 @@ from collections import defaultdict
 from io import BytesIO
 from typing import Literal, Optional
 
-import click
+import asyncclick as click
 import keyring
 import requests
 from magika import Magika
@@ -680,8 +680,8 @@ async def push():
         console.print("[bold green]Cleanup completed![/]")
 
 
-cli.add_command(login)
 cli.add_command(init)
+cli.add_command(login)
 cli.add_command(push)
 cli.add_command(sync)
 
