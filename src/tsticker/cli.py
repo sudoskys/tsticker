@@ -342,10 +342,11 @@ async def init(
         return
     console.print(f"[bold blue]Pack directory inited:[/] {sticker_dir}")
     index_file = sticker_dir.joinpath("index.json")
+    real_pack_name = bot_setting.make_set_name(bot_setting.pack_name, bot_setting.bot_user.username)
     index_file.write_text(
         StickerPack.create(
             title=bot_setting.pack_title,
-            name=bot_setting.make_set_name(bot_setting.pack_name, bot_setting.bot_user.username),
+            name=real_pack_name,
             sticker_type=bot_setting.sticker_type,
             operator_id=str(bot_setting.bot_user.id)
         ).model_dump_json(indent=2)
@@ -354,7 +355,7 @@ async def init(
     app = StickerApp(bot_setting)
     with console.status("[bold blue]Retrieving sticker...[/]", spinner='dots'):
         try:
-            sticker_set = await limited_request(app.bot.get_sticker_set(bot_setting.pack_name))
+            sticker_set = await limited_request(app.bot.get_sticker_set(real_pack_name))
         except Exception as e:
             if "STICKERSET_INVALID" in str(e):
                 sticker_set = None
