@@ -10,7 +10,7 @@ class Emote(BaseModel):
     file_id: str
 
 
-class StickerPack(BaseModel):
+class StickerIndexFile(BaseModel):
     title: str
     name: str
     sticker_type: Literal["mask", "regular", "custom_emoji"]
@@ -30,7 +30,7 @@ class StickerPack(BaseModel):
         return self
 
     @classmethod
-    def create(cls, title: str, name: str, sticker_type: str, operator_id: str) -> "StickerPack":
+    def create(cls, title: str, name: str, sticker_type: str, operator_id: str) -> "StickerIndexFile":
         lock_ns = generate_lock_ns(bot_id=operator_id, name=name, sticker_type=sticker_type)
         return cls(
             title=title,

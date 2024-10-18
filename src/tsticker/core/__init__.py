@@ -2,20 +2,16 @@ import re
 from typing import Literal, Optional
 
 from loguru import logger
-from pydantic import BaseModel, SecretStr, model_validator, field_validator, ConfigDict
+from pydantic import BaseModel, model_validator, field_validator, ConfigDict
 from telebot import TeleBot, logger
 from telebot.types import User
 
 from .create import Emote
 
 
-class AppSetting(BaseModel):
+class StickerValidateInput(BaseModel):
     pack_name: str
     pack_title: str
-    bot_token: SecretStr
-    bot_proxy: str | None
-    bot_user: User
-    owner_id: int
     sticker_type: Literal["mask", "regular", "custom_emoji"]
     needs_repainting: Optional[bool] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)

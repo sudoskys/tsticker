@@ -4,6 +4,7 @@ import os
 import pathlib
 from asyncio import Semaphore
 from collections import defaultdict
+from importlib import metadata
 from io import BytesIO
 from typing import Literal, Optional
 
@@ -11,22 +12,17 @@ import asyncclick
 import keyring
 import requests
 from magika import Magika
-from pydantic import BaseModel, ValidationError, SecretStr, model_validator
+from pydantic import BaseModel, ValidationError, model_validator
 from rich.console import Console
 from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_helper import session_manager
 from telebot.types import StickerSet, InputSticker, InputFile
 from telegram_sticker_utils import ImageProcessor
 
-from tsticker.core import User, AppSetting
+from tsticker.core import User, StickerValidateInput
 from tsticker.core import get_bot_user
 from tsticker.core.const import SERVICE_NAME, USERNAME
-from tsticker.core.create import StickerPack, Emote
-
-try:
-    from importlib import metadata
-except ImportError:  # for Python<3.8
-    import importlib_metadata as metadata
+from tsticker.core.create import StickerIndexFile, Emote
 
 PYPI_URL = "https://pypi.org/pypi/tsticker/json"
 magika = Magika()
@@ -76,13 +72,6 @@ def close_session_sync():
 
 # 注册关闭钩子
 atexit.register(close_session_sync)
-
-
-class StickerApp:
-    def __init__(self, setting: AppSetting):
-        self.setting = setting
-        self.bot_user = setting.bot_user
-        self.bot = AsyncTeleBot(setting.bot_token.get_secret_value())
 
 
 class Credentials(BaseModel):
@@ -187,10 +176,15 @@ async def login(
     console.print(f"[bold green]You are now logged in.[/]")
 
 
-async def download_and_write_file(app, file_id, file_unique_id, sticker_table_dir):
+async def download_and_write_file(
+        telegram_bot: AsyncTeleBot,
+        file_id: str,
+        file_unique_id: str,
+        sticker_table_dir: pathlib.Path
+):
     """下载文件并写入本地文件夹。"""
-    sticker_raw = await limited_request(app.bot.get_file(file_id=file_id))
-    sticker_io = await limited_request(app.bot.download_file(file_path=sticker_raw.file_path))
+    sticker_raw = await limited_request(telegram_bot.get_file(file_id=file_id))
+    sticker_io = await limited_request(telegram_bot.download_file(file_path=sticker_raw.file_path))
     if not sticker_io:
         return console.print(f"[bold red]Failed to download file: {file_unique_id}[/]")
     else:
@@ -203,19 +197,48 @@ async def download_and_write_file(app, file_id, file_unique_id, sticker_table_di
     return sticker_file
 
 
+async def download_sticker_set(
+        pack_name: str,
+        telegram_bot: AsyncTeleBot,
+        download_dir: pathlib.Path
+):
+    sticker_set = await limited_request(telegram_bot.get_sticker_set(pack_name))
+    if not sticker_set:
+        console.print(f"[bold red]Sticker set not found: {pack_name}[/]")
+        return
+    sticker_set: StickerSet
+    sticker_table_dir = download_dir.joinpath(pack_name)
+    sticker_table_dir.mkdir(exist_ok=True)
+    delete_same_name_files(sticker_table_dir)
+    total_stickers = len(sticker_set.stickers)
+    with console.status("[bold blue]Downloading pack...[/]", spinner='dots') as status:
+        # 不用 asyncio.gather 是因为 Telegram 服务器会Block
+        index = 0
+        for sticker in sticker_set.stickers:
+            index += 1
+            status.update(f"[bold blue]Synchronizing indexes: {sticker.file_id}...[/] {index}/{total_stickers}")
+            await download_and_write_file(
+                telegram_bot=telegram_bot,
+                file_id=sticker.file_id,
+                file_unique_id=sticker.file_unique_id,
+                sticker_table_dir=sticker_table_dir
+            )
+    console.print(f"[bold green]Downloaded sticker set: {pack_name}[/]")
+
+
 async def sync_index(
-        app: StickerApp,
+        telegram_bot: AsyncTeleBot,
         index_file: pathlib.Path,
-        sticker_set: StickerSet
+        cloud_sticker_set: StickerSet
 ):
     """
     从云端下载索引文件，同步本地索引文件
-    :param app:
-    :param index_file:
-    :param sticker_set:
+    :param telegram_bot: AsyncTeleBot
+    :param index_file: 索引文件
+    :param cloud_sticker_set: 云端的贴纸集
     """
     try:
-        pack = StickerPack.model_validate_json(index_file.read_text())
+        pack = StickerIndexFile.model_validate_json(index_file.read_text())
     except Exception as e:
         console.print(f"[bold red]Index file was corrupted: {e}[/]")
         return
@@ -229,7 +252,7 @@ async def sync_index(
     }
     cloud_files = {
         sticker.file_unique_id: sticker
-        for sticker in sticker_set.stickers
+        for sticker in cloud_sticker_set.stickers
     }
     to_delete = [
         local_files[ids]
@@ -263,7 +286,7 @@ async def sync_index(
             index += 1
             status.update(f"[bold blue]Synchronizing indexes: {file_id}...[/] {index}/{len(to_download)}")
             await download_and_write_file(
-                app,
+                telegram_bot=telegram_bot,
                 file_id=cloud_files[file_id].file_id,
                 file_unique_id=cloud_files[file_id].file_unique_id,
                 sticker_table_dir=sticker_table_dir
@@ -291,6 +314,89 @@ async def sync_index(
 
 
 @asyncclick.command()
+async def logout():
+    """Log out."""
+    keyring.delete_password(SERVICE_NAME, USERNAME)
+    console.print("[bold yellow]You are now logged out.[/]")
+
+
+@asyncclick.command()
+@asyncclick.option('-d', '--download-dir', default='.', help='Directory to download stickers')
+@asyncclick.option('-l', '--link', required=True, help='Link for downloading stickers')
+async def download(download_dir: str, link: str):
+    """Download stickers from Telegram."""
+    credentials = get_credentials()
+    if not credentials:
+        console.print("[bold red]You are not logged in. Please login first.[/]")
+        return
+    pack_name = link.removesuffix("/").split("/")[-1]
+    download_dir = pathlib.Path(download_dir)
+    if not download_dir.exists():
+        console.print(f"[bold red]Download directory does not exist: {download_dir}[/]")
+        return
+    console.print(f"[bold blue]Preparing to download pack: {pack_name} to {download_dir.as_posix()}[/]")
+    telegram_bot = AsyncTeleBot(credentials.token)
+    await download_sticker_set(pack_name, telegram_bot, download_dir)
+    console.print("[bold green]Download completed![/]")
+
+
+@asyncclick.command()
+@asyncclick.option('-l', '--link', required=True, help='Link to import stickers')
+async def trace(link: str):
+    """Initialize with pack name, pack title, and sticker type."""
+    credentials = get_credentials()
+    if not credentials:
+        return console.print("[bold red]You are not logged in. Please login first.[/]")
+    with console.status("[bold blue]Retrieving sticker...[/]", spinner='dots'):
+        _pack_name = link.removesuffix("/").split("/")[-1]
+        try:
+            telegram_bot = AsyncTeleBot(credentials.token)
+            cloud_sticker_set = await limited_request(
+                AsyncTeleBot(credentials.token).get_sticker_set(_pack_name)
+            )
+        except Exception as e:
+            console.print(f"[bold red]Failed to get sticker set for {_pack_name}: {e}[/]")
+            return
+    console.print(
+        f"[bold blue]Cloud sticker with pack name:[/] {cloud_sticker_set.pack_name}\n"
+        f"[bold blue]Pack Title:[/] {cloud_sticker_set.pack_title} \n"
+        f"[bold blue]Sticker Type:[/] {cloud_sticker_set.sticker_type}"
+    )
+    root_dir = pathlib.Path(os.getcwd())
+    # 尝试使用 Packname 创建文件夹
+    try:
+        sticker_dir = root_dir.joinpath(cloud_sticker_set.pack_name)
+        if sticker_dir.exists():
+            console.print(f"[bold red]Pack directory already exists:[/] {sticker_dir}")
+            return
+        sticker_dir.mkdir(exist_ok=False)
+    except Exception as e:
+        console.print(f"[bold red]Failed to create pack directory: {e}[/]")
+        return
+    console.print(f"[bold blue]Pack directory inited:[/] {sticker_dir}")
+    index_file = sticker_dir.joinpath("index.json")
+    index_file.write_text(
+        StickerIndexFile.create(
+            title=cloud_sticker_set.pack_title,
+            name=cloud_sticker_set.pack_name,
+            sticker_type=cloud_sticker_set.sticker_type,
+            operator_id=str(cloud_sticker_set.bot_user.id)
+        ).model_dump_json(indent=2)
+    )
+    # 创建资源文件夹
+    sticker_table_dir = sticker_dir.joinpath("stickers")
+    sticker_table_dir.mkdir(exist_ok=True)
+    if not cloud_sticker_set:
+        console.print(f"[bold blue]Empty pack, and index file created:[/] {index_file}")
+    else:
+        # 同步索引文件
+        await sync_index(telegram_bot, index_file, cloud_sticker_set)
+    console.print("[bold blue]Initialization completed![/]")
+    console.print(f"\n[bold yellow]Put your stickers in {sticker_table_dir}, [/]")
+    console.print("[bold yellow]then run 'tsticker push' to push your stickers to Telegram.[/]")
+
+
+@asyncclick.command()
 @asyncclick.option(
     '-s', '--sticker-type',
     type=asyncclick.Choice(['mask', 'regular', 'custom_emoji'], case_sensitive=False),
@@ -311,28 +417,25 @@ async def init(
         console.print("[bold red]You are not logged in. Please login first.[/]")
         return
     try:
-        bot_setting = AppSetting(
+        validate_input = StickerValidateInput(
             pack_name=pack_name,
             pack_title=pack_title,
             sticker_type=sticker_type,
-            bot_token=SecretStr(credentials.token),
-            bot_proxy=credentials.bot_proxy,
-            bot_user=credentials.bot_user,
-            owner_id=int(credentials.owner_id)
         )
+        telegram_bot = AsyncTeleBot(credentials.token)
     except Exception as e:
         console.print(f"[bold red]Failed to create app: {e}[/]")
         console.print("[bold red]Pack name must be alphanumeric and underscore only.[/]")
         return
     console.print(
-        f"[bold blue]Initializing with pack name:[/] {pack_name}\n"
-        f"[bold blue]Pack Title:[/] {pack_title} \n"
-        f"[bold blue]Sticker Type:[/] {sticker_type}"
+        f"[bold blue]Initializing with pack name:[/] {validate_input.pack_name}\n"
+        f"[bold blue]Pack Title:[/] {validate_input.pack_title} \n"
+        f"[bold blue]Sticker Type:[/] {validate_input.sticker_type}"
     )
     root_dir = pathlib.Path(os.getcwd())
     # 尝试使用 Packname 创建文件夹
     try:
-        sticker_dir = root_dir.joinpath(pack_name)
+        sticker_dir = root_dir.joinpath(validate_input.pack_name)
         if sticker_dir.exists():
             console.print(f"[bold red]Pack directory already exists:[/] {sticker_dir}")
             return
@@ -342,25 +445,24 @@ async def init(
         return
     console.print(f"[bold blue]Pack directory inited:[/] {sticker_dir}")
     index_file = sticker_dir.joinpath("index.json")
-    real_pack_name = bot_setting.make_set_name(bot_setting.pack_name, bot_setting.bot_user.username)
+    index_file_model = StickerIndexFile.create(
+        title=validate_input.pack_title,
+        name=StickerValidateInput.make_set_name(validate_input.pack_name, credentials.bot_user.username),
+        sticker_type=sticker_type,
+        operator_id=str(credentials.bot_user.id)
+    )
     index_file.write_text(
-        StickerPack.create(
-            title=bot_setting.pack_title,
-            name=real_pack_name,
-            sticker_type=bot_setting.sticker_type,
-            operator_id=str(bot_setting.bot_user.id)
-        ).model_dump_json(indent=2)
+        index_file_model.model_dump_json(indent=2)
     )
     # 创建 App
-    app = StickerApp(bot_setting)
     with console.status("[bold blue]Retrieving sticker...[/]", spinner='dots'):
         try:
-            sticker_set = await limited_request(app.bot.get_sticker_set(real_pack_name))
+            sticker_set = await limited_request(telegram_bot.get_sticker_set(index_file_model.name))
         except Exception as e:
             if "STICKERSET_INVALID" in str(e):
                 sticker_set = None
             else:
-                console.print(f"[bold red]Failed to get sticker set {bot_setting.pack_name}: {e}[/]")
+                console.print(f"[bold red]Failed to reach out sticker set {index_file_model}: {e}[/]")
                 return
     # 创建资源文件夹
     sticker_table_dir = sticker_dir.joinpath("stickers")
@@ -369,13 +471,13 @@ async def init(
         console.print(f"[bold blue]Empty pack, and index file created:[/] {index_file}")
     else:
         # 同步索引文件
-        await sync_index(app, index_file, sticker_set)
+        await sync_index(telegram_bot, index_file, sticker_set)
     console.print("[bold blue]Initialization completed![/]")
     console.print(f"\n[bold yellow]Put your stickers in {sticker_table_dir}, [/]")
     console.print("[bold yellow]then run 'tsticker push' to push your stickers to Telegram.[/]")
 
 
-async def upon_credentials() -> tuple[Optional[StickerPack], Optional[pathlib.Path], Optional[StickerApp]]:
+async def upon_credentials() -> tuple[Optional[StickerIndexFile], Optional[pathlib.Path], Optional[AsyncTeleBot]]:
     credentials = get_credentials()
     if not credentials:
         console.print("[bold red]You are not logged in. Please login first.[/]")
@@ -386,62 +488,60 @@ async def upon_credentials() -> tuple[Optional[StickerPack], Optional[pathlib.Pa
         console.print("[bold red]Index file not found. Please sync in an initialized directory.[/]")
         return None, None, None
     try:
-        pack = StickerPack.model_validate_json(index_file.read_text())
+        local_sticker_model = StickerIndexFile.model_validate_json(index_file.read_text())
     except ValidationError as e:
         console.print(f"[bold red]Index file was corrupted: {e}[/]")
         return None, None, None
     try:
-        app_settings = AppSetting(
-            pack_name=pack.name,
-            pack_title=pack.title,
-            sticker_type=pack.sticker_type,
-            bot_token=SecretStr(credentials.token),
-            bot_proxy=credentials.bot_proxy,
-            bot_user=credentials.bot_user,
-            owner_id=int(credentials.owner_id)
+        StickerValidateInput(
+            pack_name=local_sticker_model.name,
+            pack_title=local_sticker_model.title,
+            sticker_type=local_sticker_model.sticker_type,
         )
-        app = StickerApp(app_settings)
+        telegram_bot = AsyncTeleBot(credentials.token)
     except Exception as e:
         console.print(f"[bold red]Failed to create app: {e}[/]")
         return None, None, None
-    return pack, index_file, app
+    return local_sticker_model, index_file, telegram_bot
 
 
 @asyncclick.command()
 async def sync():
     """Synchronize data."""
-    pack, index_file, app = await upon_credentials()
-    if not pack or not index_file or not app:
+    local_sticker, index_file, telegram_bot = await upon_credentials()
+    if not local_sticker or not index_file or not telegram_bot:
         return
     with console.status("[bold magenta]Retrieving sticker...[/]", spinner='dots'):
         try:
-            sticker_set = await limited_request(app.bot.get_sticker_set(pack.name))
+            now_sticker_set = await limited_request(
+                telegram_bot.get_sticker_set(local_sticker.name)
+            )
         except Exception as e:
             if "STICKERSET_INVALID" in str(e):
-                sticker_set = None
+                now_sticker_set = None
             else:
-                console.print(f"[bold red]Failed to get sticker set {pack.name}: {e}[/]")
+                console.print(f"[bold red]Failed to get sticker set {local_sticker.name}: {e}[/]")
                 return
-    if not sticker_set:
+    if not now_sticker_set:
         console.print("[bold red]Sticker Set not created yet. Please push first.[/]")
         return
-    console.print(f"[bold cyan]Working on pack:[/] https://t.me/addstickers/{app.setting.pack_name}")
+    console.print(f"[bold cyan]Working on pack:[/] https://t.me/addstickers/{local_sticker.name}")
     console.print("[bold magenta]Synchronizing data...[/]")
-    await sync_index(app, index_file, sticker_set)
+    await sync_index(telegram_bot, index_file, cloud_sticker_set=now_sticker_set)
 
 
 async def create_sticker(
-        app: StickerApp,
+        sticker_type: Literal["mask", "regular", "custom_emoji"],
         sticker_file: pathlib.Path,
 ) -> InputSticker | None:
     """
     创建贴纸，然后替换本地文件为合法的贴纸文件。
     首先判断是动态还是静态贴纸，然后按照贴纸类型进行处理。
-    :param app: StickerApp
-    :param sticker_file: 本地贴纸文件
+    :param sticker_type: 贴纸类型
+    :param sticker_file: 本地文件
     :return: InputSticker | None
     """
-    if app.setting.sticker_type == "custom_emoji":
+    if sticker_type == "custom_emoji":
         scale = 100
     else:
         scale = 512
@@ -464,18 +564,18 @@ async def create_sticker(
 
 
 async def push_to_cloud(
-        app: StickerApp,
+        telegram_bot: AsyncTeleBot,
         index_file: pathlib.Path,
-        sticker_set: StickerSet | None,
+        cloud_sticker_set: StickerSet | None,
 ):
     """
     推送本地文件更改到云端，如果不存在则创建。
-    :param app: StickerApp
+    :param telegram_bot: 电报机器人
     :param index_file: 本地索引文件
-    :param sticker_set: 云端的贴纸集
+    :param cloud_sticker_set: 云端的贴纸集
     """
     try:
-        pack = StickerPack.model_validate_json(index_file.read_text())
+        local_sticker = StickerIndexFile.model_validate_json(index_file.read_text())
     except Exception as e:
         console.print(f"[bold red]Index file was corrupted: {e}[/]")
         return
@@ -487,7 +587,7 @@ async def push_to_cloud(
         f.stem: f
         for f in sticker_table_dir.glob('*')
     }
-    if not sticker_set:
+    if not cloud_sticker_set:
         # TODO 413 => 'Payload Too Large',
         stickers = []
         _index = 0
@@ -498,7 +598,10 @@ async def push_to_cloud(
                 status.update(
                     f"[bold yellow]Creating sticker for file: {sticker_file.name}...[/] {_index}/{_all}"
                 )
-                sticker = await create_sticker(app, sticker_file)
+                sticker = await create_sticker(
+                    sticker_type=local_sticker.sticker_type,
+                    sticker_file=sticker_file
+                )
                 if not sticker:
                     console.print(f"[bold red]Failed to create sticker for file: {sticker_file.name}, stopping...[/]")
                     return False
@@ -514,12 +617,12 @@ async def push_to_cloud(
         with console.status("[bold yellow]Creating sticker set...[/]", spinner='dots'):
             try:
                 success = await limited_request(
-                    app.bot.create_new_sticker_set(
-                        user_id=app.setting.owner_id,
-                        title=pack.title,
-                        name=pack.name,
+                    telegram_bot.create_new_sticker_set(
+                        user_id=int(local_sticker.operator_id),
+                        title=local_sticker.title,
+                        name=local_sticker.name,
                         stickers=stickers,
-                        sticker_type=pack.sticker_type
+                        sticker_type=local_sticker.sticker_type
                     )
                 )
                 assert success, "Request failed"
@@ -532,7 +635,7 @@ async def push_to_cloud(
     # 获取云端文件
     cloud_files = {
         sticker.file_unique_id: sticker
-        for sticker in sticker_set.stickers
+        for sticker in cloud_sticker_set.stickers
     }
     # 本地文件中不存在的文件
     to_upload = [
@@ -551,12 +654,12 @@ async def push_to_cloud(
         if file_unique_id in cloud_files and local_files[file_unique_id].stat().st_size != cloud_files[
             file_unique_id].file_size
     ]
-    if pack.title != sticker_set.title:
+    if local_sticker.title != cloud_sticker_set.title:
         with console.status("[bold yellow]Updating title...[/]", spinner='dots'):
             await limited_request(
-                app.bot.set_sticker_set_title(pack.name, pack.title)
+                telegram_bot.set_sticker_set_title(local_sticker.name, local_sticker.title)
             )
-        console.print(f"[bold yellow]Title updated to: {pack.title}[/]")
+        console.print(f"[bold yellow]Title updated to: {local_sticker.title}[/]")
     if to_delete or to_upload or to_fix:
         console.print("[bold yellow]Changes detected:[/]")
         console.print(f"[bold yellow]Files to delete:[/] {len(to_delete)}")
@@ -576,7 +679,7 @@ async def push_to_cloud(
             status.update(f"[bold yellow]Deleting stickers for all users: {file_id}...[/] {_index}/{_all}")
             try:
                 success = await limited_request(
-                    app.bot.delete_sticker_from_set(sticker=file_id)
+                    telegram_bot.delete_sticker_from_set(sticker=file_id)
                 )
                 assert success, "Request failed"
             except Exception as e:
@@ -592,12 +695,12 @@ async def push_to_cloud(
             _index += 1
             status.update(f"[bold yellow]Uploading sticker: {file_name}...[/] {_index}/{_all}")
             sticker_file = local_files[file_name]
-            sticker = await create_sticker(app, sticker_file)
+            sticker = await create_sticker(sticker_type=local_sticker.sticker_type, sticker_file=sticker_file)
             if sticker:
                 success = await limited_request(
-                    app.bot.add_sticker_to_set(
-                        user_id=app.setting.owner_id,
-                        name=pack.name,
+                    telegram_bot.add_sticker_to_set(
+                        user_id=int(local_sticker.operator_id),
+                        name=local_sticker.name,
                         sticker=sticker
                     )
                 )
@@ -621,9 +724,8 @@ async def push_to_cloud(
                 f"[bold yellow]Correcting stickers: {local_file_name}: {cloud_file_id}...[/] {_index}/{_all}")
             try:
                 # 删除本地文件
-
                 await download_and_write_file(
-                    app,
+                    telegram_bot=telegram_bot,
                     file_id=cloud_file_id,
                     file_unique_id=local_file_name,
                     sticker_table_dir=sticker_table_dir
@@ -645,22 +747,22 @@ async def push():
     # 检查仓库更新
     await check_for_updates()
     """Push local file changes to Telegram."""
-    pack, index_file, app = await upon_credentials()
-    if not pack or not index_file or not app:
+    local_sticker, index_file, telegram_bot = await upon_credentials()
+    if not local_sticker or not index_file or not telegram_bot:
         return
     # 获取云端文件
     with console.status("[bold yellow]Retrieving sticker...[/]", spinner='dots'):
         try:
-            sticker_set = await limited_request(app.bot.get_sticker_set(pack.name))
+            sticker_set = await limited_request(telegram_bot.get_sticker_set(local_sticker.name))
         except Exception as e:
             if "STICKERSET_INVALID" in str(e):
                 sticker_set = None
             else:
-                console.print(f"[bold red]Failed to get sticker set {pack.name}: {e}[/]")
+                console.print(f"[bold red]Failed to get sticker set {local_sticker.name}: {e}[/]")
                 return
-    console.print(f"[bold cyan]Working on pack:[/] https://t.me/addstickers/{app.setting.pack_name}")
+    console.print(f"[bold cyan]Working on pack:[/] https://t.me/addstickers/{local_sticker.name}")
     try:
-        if not await push_to_cloud(app=app, index_file=index_file, sticker_set=sticker_set):
+        if not await push_to_cloud(telegram_bot=telegram_bot, index_file=index_file, cloud_sticker_set=sticker_set):
             console.print("[bold red]Push aborted![/]")
     except Exception as e:
         from loguru import logger
@@ -670,15 +772,15 @@ async def push():
     # 同步索引文件
     with console.status("[bold yellow]Synchronizing index...[/]", spinner='dots'):
         try:
-            sticker_set = await limited_request(app.bot.get_sticker_set(pack.name))
+            sticker_set = await limited_request(telegram_bot.get_sticker_set(local_sticker.name))
         except Exception as e:
             if "STICKERSET_INVALID" in str(e):
                 sticker_set = None
             else:
-                console.print(f"[bold red]Failed to get sticker set {pack.name}: {e}[/]")
+                console.print(f"[bold red]Failed to get sticker set {local_sticker.name}: {e}[/]")
                 return
     if sticker_set:
-        await sync_index(app, index_file, sticker_set=sticker_set)
+        await sync_index(telegram_bot=telegram_bot, index_file=index_file, cloud_sticker_set=sticker_set)
         console.print("[bold green]Cleanup completed![/]")
 
 
@@ -686,6 +788,8 @@ cli.add_command(init)
 cli.add_command(login)
 cli.add_command(push)
 cli.add_command(sync)
+cli.add_command(trace)
+cli.add_command(download)
 
 if __name__ == "__main__":
     cli(_anyio_backend="asyncio")
