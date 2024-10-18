@@ -515,7 +515,7 @@ async def upon_credentials() -> tuple[Optional[StickerIndexFile], Optional[pathl
 
 @asyncclick.command()
 async def sync():
-    """Synchronize data."""
+    """Overwrite local file changes using Telegram."""
     local_sticker, index_file, telegram_bot = await upon_credentials()
     if not local_sticker or not index_file or not telegram_bot:
         return
@@ -752,6 +752,7 @@ async def push_to_cloud(
 
 @asyncclick.command()
 async def push():
+    """Overwrite telegram stickers using local files."""
     # 检查仓库更新
     await check_for_updates()
     """Push local file changes to Telegram."""
