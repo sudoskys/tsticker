@@ -29,18 +29,18 @@ Simple? Yes, it is!
 | `tsticker login`    | Logs in to your Telegram account.                                                                |
 | `tsticker logout`   | Logs out of your Telegram account.                                                               |
 | `tsticker help`     | Displays help information for the CLI.                                                           |
-| `tsticker download` | Downloads the sticker pack from the cloud to your local directory.                               |
+| `tsticker download` | Download any sticker pack from the cloud to your local directory.                                |
 | `tsticker trace`    | Import cloud sticker pack from url.                                                              |
 
-| Example                                                          | Description                              |
-|------------------------------------------------------------------|------------------------------------------|
-| `tsticker init -s regular -n 'sticker_id' -t 'My sticker title'` | Initialize a new sticker                 |
-| `tsticker sync`                                                  | Sync sticker pack                        |
-| `tsticker push`                                                  | Push sticker pack                        |
-| `tsticker login -t <token> -u <user>`                            | Log in to Telegram                       |
-| `tsticker logout`                                                | Log out of Telegram                      |
-| `tsticker download -l <sticker link>`                            | Download sticker pack, cant make changes |
-| `tsticker trace -l <sticker link>`                               | Import sticker pack(can make changes)    |
+| Example                                                          | Description                                  |
+|------------------------------------------------------------------|----------------------------------------------|
+| `tsticker init -s regular -n 'sticker_id' -t 'My sticker title'` | Initialize a new sticker                     |
+| `tsticker sync`                                                  | Sync sticker pack                            |
+| `tsticker push`                                                  | Push sticker pack                            |
+| `tsticker login -t <token> -u <user>`                            | Log in to Telegram                           |
+| `tsticker logout`                                                | Log out of Telegram                          |
+| `tsticker download -l <any sticker link>`                        | Download any sticker pack, cant make changes |
+| `tsticker trace -l <sticker link>`                               | Import sticker pack(can make changes)        |
 
 **If you encounter any issues, please [create a new Issue](https://github.com/sudoskys/tsticker/issues) on our GitHub
 repository.**
