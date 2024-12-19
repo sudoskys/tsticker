@@ -434,11 +434,6 @@ async def init(
         console.print(f"[bold red]Failed to create app: {e}[/]")
         console.print("[bold red]Pack name must be alphanumeric and underscore only.[/]")
         return
-    console.print(
-        f"[bold blue]Initializing with pack name:[/] {validate_input.pack_name}\n"
-        f"[bold blue]Pack Title:[/] {validate_input.pack_title} \n"
-        f"[bold blue]Sticker Type:[/] {validate_input.sticker_type}"
-    )
     root_dir = pathlib.Path(os.getcwd())
     # 尝试使用 Packname 创建文件夹
     try:
@@ -456,11 +451,23 @@ async def init(
         title=validate_input.pack_title,
         name=StickerValidateInput.make_set_name(validate_input.pack_name, credentials.bot_user.username),
         sticker_type=sticker_type,
-        operator_id=str(credentials.bot_user.id)
+        operator_id=str(credentials.owner_id)
     )
     index_file.write_text(
         index_file_model.model_dump_json(indent=2)
     )
+    console.print(
+        f"[bold blue]New index created:[/]"
+        f"\n[bold blue]Pack Title:[/] {index_file_model.title}"
+        f"\n[bold blue]Link Name:[/] {index_file_model.name}"
+        f"\n[bold blue]Sticker Type:[/] {index_file_model.sticker_type}"
+        f"\n[bold blue]Bot Owner:[/] {index_file_model.operator_id}"
+    )
+    # 如果bot owner id 太长警告用户
+    if len(index_file_model.operator_id) > 9:
+        console.print(
+            "[bold yellow]Are you sure?[/] Your owner id is too long, it may not be a human-user id."
+        )
     # 创建 App
     with console.status("[bold blue]Retrieving sticker...[/]", spinner='dots'):
         try:
@@ -636,7 +643,9 @@ async def push_to_cloud(
                 assert success, "Request failed"
             except Exception as e:
                 if "USER_IS_BOT" in str(e):
-                    console.print(f"[bold yellow]You cant create sticker set with a bot account: {e}[/]")
+                    console.print(f"[bold yellow]You cant create sticker set with a bot account: {e}[/]"
+                                  f"\nAre you sure ID[{local_sticker.operator_id}] is your user id not the bot id?"
+                                  )
                 console.print(f"[bold red]Failed to create sticker set: {e}[/]")
                 return False
         return True
