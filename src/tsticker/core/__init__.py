@@ -28,6 +28,9 @@ class StickerValidateInput(BaseModel):
         pattern = r'^[a-zA-Z0-9_]+$'
         if not re.match(pattern, value):
             raise ValueError(f"Invalid pack_name '{value}': must match pattern '{pattern}'")
+        # 禁止使用数字开头
+        if value[0].isdigit():
+            raise ValueError(f"Invalid pack_name '{value}': must not start with a digit")
         return value
 
     @field_validator("pack_title", mode="before")
