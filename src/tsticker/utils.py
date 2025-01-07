@@ -5,6 +5,7 @@ from importlib import metadata
 from io import BytesIO
 from typing import Literal
 
+import emoji
 import requests
 from pydantic import BaseModel, model_validator
 from rich.console import Console
@@ -57,15 +58,25 @@ class Credentials(BaseModel):
         return self._bot_user
 
 
+def get_emojis_from_file_name(file_name: str):
+    _result = []
+    for _char in file_name:
+        if emoji.is_emoji(_char):
+            _result.append(_char)
+    return _result
+
+
 async def create_sticker(
         sticker_type: Literal["mask", "regular", "custom_emoji"],
         sticker_file: pathlib.Path,
 ) -> InputSticker | None:
     """
-    创建贴纸，然后替换本地文件为合法的贴纸文件。
-    首先判断是动态还是静态贴纸，然后按照贴纸类型进行处理。
-    :param sticker_type: 贴纸类型
-    :param sticker_file: 本地文件
+    Create sticker from local file by telegram_sticker_utils.
+    First check if it is animated or static sticker, then process according to sticker type.
+    If sticker type is custom_emoji, scale is 100, otherwise scale is 512.
+    If sticker name is emoji, emojis is sticker name, otherwise emojis return from telegram_sticker_utils.
+    :param sticker_type: sticker type
+    :param sticker_file: local file
     :return: InputSticker | None
     """
     if sticker_type == "custom_emoji":
@@ -73,16 +84,21 @@ async def create_sticker(
     else:
         scale = 512
     sticker_file_path = sticker_file.as_posix()
+
     try:
+        emojis = get_emojis_from_file_name(sticker_file.stem)
         sticker = ImageProcessor.make_sticker(
             input_name=sticker_file.stem,
             input_data=sticker_file_path,
             scale=scale,
             master_edge="width"
         )
+        # If emojis is empty, use sticker emojis instead
+        if not emojis:
+            emojis = sticker.emojis
         return InputSticker(
             sticker=InputFile(BytesIO(sticker.data)),
-            emoji_list=sticker.emojis,
+            emoji_list=emojis,
             format=sticker.sticker_type
         )
     except Exception as e:

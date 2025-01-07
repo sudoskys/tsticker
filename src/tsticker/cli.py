@@ -125,7 +125,8 @@ def backup_snapshot(index_file: pathlib.Path):
     new_snapshot = snapshot_dir.joinpath(f"{SNAPSHOT_DIR_NAME}_{timestamp}")
     shutil.copytree(sticker_table_dir, new_snapshot)
     console.print(f"[bold steel_blue3]✔ Snapshot backup created successfully at:[/] {new_snapshot}")
-    console.print(f"[bold steel_blue3]    You can restore it by copying the contents back to the stickers directory.[/]")
+    console.print(
+        f"[bold steel_blue3]    You can restore it by copying the contents back to the stickers directory.[/]")
 
 
 @asyncclick.group()
@@ -264,10 +265,10 @@ async def sync_index(
 
     if to_delete:
         # 格式化列表内容
-        file_list_text = "\n".join([f"- [bold gray]{file_name.name}[/]" for file_name in to_delete])
+        file_list_text = "\n".join([f"- [bold grey42]{file_name.name}[/]" for file_name in to_delete])
         # 创建 Panel
         panel = Panel(
-            Text(file_list_text),
+            Text.from_markup(file_list_text),
             title="Cleaning Up Files",
             subtitle=f"Files to delete: {len(to_delete)}",
             style="yellow",
@@ -428,7 +429,16 @@ async def init(
     """Initialize with pack name, pack title, and sticker type."""
     credentials = get_credentials()
     if not credentials:
-        console.print(Panel("[bold red]You are not logged in. Please login first.[/]", style="red", expand=False))
+        console.print(
+            Panel(
+                "[bold red]You are not logged in. Please login first.[/]",
+                style="red",
+                title="Login Required",
+                title_align="left",
+                subtitle="Type `tsticker help` for more information.",
+                expand=False
+            )
+        )
         return
     try:
         validate_input = StickerValidateInput(
@@ -443,15 +453,42 @@ async def init(
         return
 
     root_dir = pathlib.Path(os.getcwd())
+    # 检查根目录下是否存在索引文件
+    if root_dir.joinpath("index.json").exists():
+        # 警告用户可能在一个已经初始化的目录中操作初始化
+        console.print(Panel(
+            "Wait a minute! "
+            "It seems you are initializing in a directory that has [bold cyan]already have an index file[/].\n"
+            f"You are now in: [bold green]{root_dir}[/]",
+            style="cyan",
+            title="index.json Found",
+            title_align="left",
+            expand=False
+        ))
+        # 询问用户是否继续
+        if not asyncclick.confirm("Do you want to continue?"):
+            return
     try:
         sticker_dir = root_dir.joinpath(validate_input.pack_name)
         if sticker_dir.exists():
             console.print(
-                Panel(f"[bold red]Pack directory already exists:[/] {sticker_dir}", style="red", expand=False))
+                Panel(
+                    f"[bold red]Pack directory already exists:[/] {sticker_dir}",
+                    title="Directory Exists",
+                    title_align="left",
+                    style="red",
+                    expand=False)
+            )
             return
         sticker_dir.mkdir(exist_ok=False)
     except Exception as e:
-        console.print(Panel(f"[bold red]Failed to create pack directory: {e}[/]", style="red", expand=False))
+        console.print(Panel(
+            f"[bold red]Failed to create pack directory: {e}[/]",
+            style="red",
+            title="Directory Creation Failed",
+            title_align="left",
+            expand=False)
+        )
         return
 
     # 成功创建 Pack 目录
@@ -477,6 +514,7 @@ async def init(
         f"  [bold cyan]Bot Owner:[/] {index_file_model.operator_id}",
         style="cyan",
         title="StickerSet Info",
+        title_align="left",
         expand=False
     ))
 
@@ -516,9 +554,10 @@ async def init(
     # 提示下一步操作
     console.print("\n[bold dark_green]✔ Initialization completed![/]")
     console.print(Panel(
-        f"[bold yellow]Put your stickers in:[/] {sticker_table_dir}\n"
-        "[bold yellow]Then run 'tsticker push' to push your stickers to Telegram.[/]",
-        style="yellow",
+        f"[bold dark_sea_green]Put your stickers in:[/] {sticker_table_dir}\n"
+        f"[bold dark_sea_green]Run 'cd {pack_name}' to enter the pack directory.\n"
+        "[bold dark_sea_green]Then run 'tsticker push' to push your stickers to Telegram.[/]",
+        style="dark_sea_green",
         title="Next Steps",
         expand=False
     ))
@@ -814,12 +853,7 @@ async def push():
                 return
     if sticker_set:
         await sync_index(telegram_bot=telegram_bot, index_file=index_file, cloud_sticker_set=sticker_set)
-        console.print(Panel(
-            "[bold dark_green]🎉 Push and cleanup completed successfully![/]",
-            style="green",
-            title="Done",
-            expand=False
-        ))
+        console.print("[bold dark_green]🎉 Push and cleanup completed successfully![/]")
 
 
 cli.add_command(init)

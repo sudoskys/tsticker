@@ -117,6 +117,9 @@ tsticker push
 even there are auto-resize and auto-convert, there still have some bad input such as too large image, too long video, so
 be careful.
 
+The name of the sticker file can be some direct emoji(like `😄some🧑` ), or you can fill in the name freely, and we will look for the most similar
+emoji!
+
 ## Limitations of `tsticker`
 
 | Note                            | Description                                                                                                          |
