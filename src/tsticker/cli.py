@@ -118,15 +118,16 @@ def backup_snapshot(index_file: pathlib.Path):
     # 如果快照超过三个，删除最旧的
     while len(snapshots) >= 4:
         deleted_snapshot = snapshots.pop(0)
-        console.print(f"[bold cyan]Cleaning up old snapshot: {deleted_snapshot}[/]")
+        console.print(f"[cyan]!Cleaning up old snapshot:[/] [gray42]{deleted_snapshot}[/]")
         shutil.rmtree(deleted_snapshot)
     # 创建新的快照
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     new_snapshot = snapshot_dir.joinpath(f"{SNAPSHOT_DIR_NAME}_{timestamp}")
     shutil.copytree(sticker_table_dir, new_snapshot)
-    console.print(f"[bold steel_blue3]✔ Snapshot backup created successfully at:[/] {new_snapshot}")
+    console.print(f"[dark_sea_green]✔ Snapshot backup created successfully at:[/] [gray42]{new_snapshot}[/]")
     console.print(
-        f"[bold steel_blue3]    You can restore it by copying the contents back to the stickers directory.[/]")
+        f"[dark_sea_green]    You can restore it by copying the contents back to the stickers directory.[/]"
+    )
 
 
 @asyncclick.group()
@@ -305,7 +306,6 @@ async def sync_index(
                 file_unique_id=cloud_files[file_id].file_unique_id,
                 sticker_table_dir=sticker_table_dir
             )
-
     # 更新索引文件
     emote_update = []
     for file_id, sticker in cloud_files.items():
@@ -318,7 +318,7 @@ async def sync_index(
     pack.emotes = emote_update
     with index_file.open("w") as f:
         f.write(pack.model_dump_json(indent=2))
-    console.print("[bold dark_green]✔ Synchronization completed![/]")
+    console.print(f"[bold dark_green]✔ Synchronization completed![/] [grey42]{len(to_download)} files downloaded[/]")
 
 
 @asyncclick.command()
@@ -458,9 +458,9 @@ async def init(
         # 警告用户可能在一个已经初始化的目录中操作初始化
         console.print(Panel(
             "Wait a minute! "
-            "It seems you are initializing in a directory that has [bold cyan]already have an index file[/].\n"
-            f"You are now in: [bold green]{root_dir}[/]",
-            style="cyan",
+            "It seems you are initializing in a directory that has [cyan]already have an index file[/].\n"
+            f"You are now in: [cyan]{root_dir}[/]",
+            style="blue",
             title="index.json Found",
             title_align="left",
             expand=False
@@ -490,10 +490,8 @@ async def init(
             expand=False)
         )
         return
-
     # 成功创建 Pack 目录
-    console.print(f"[bold steel_blue3]✔ Pack directory initialized:[/] {sticker_dir}")
-
+    console.print(f"[bold dark_green]✔ Pack directory initialized:[/] {sticker_dir}")
     # 生成索引文件和相关配置
     index_file = sticker_dir.joinpath("index.json")
     index_file_model = StickerIndexFile.create(
@@ -502,17 +500,15 @@ async def init(
         sticker_type=sticker_type,
         operator_id=str(credentials.owner_id)
     )
-
     index_file.write_text(index_file_model.model_dump_json(indent=2))
-
     # 输出索引信息
     console.print(Panel(
-        f"[bold cyan]New index created:[/]\n"
-        f"  [bold black]Pack Title:[/] {index_file_model.title}\n"
-        f"  [bold cyan]Link Name:[/] {index_file_model.name}\n"
-        f"  [bold cyan]Sticker Type:[/] {index_file_model.sticker_type}\n"
-        f"  [bold cyan]Bot Owner:[/] {index_file_model.operator_id}",
-        style="cyan",
+        f"[bold dark_sea_green]New index created:[/]\n"
+        f"  [steel_blue3]Pack Title:[/] {index_file_model.title}\n"
+        f"  [steel_blue3]Link Name:[/] {index_file_model.name}\n"
+        f"  [steel_blue3]Sticker Type:[/] {index_file_model.sticker_type}\n"
+        f"  [steel_blue3]Bot Owner:[/] {index_file_model.operator_id}",
+        style="grey42",
         title="StickerSet Info",
         title_align="left",
         expand=False
@@ -547,18 +543,19 @@ async def init(
 
     # 输出创建成功
     if not sticker_set:
-        console.print(f"[bold steel_blue3]✔ Empty pack, and index file created at:[/] {index_file}")
+        console.print(f"[dark_sea_green]✔ Empty pack, and index file created at:[/] {index_file}")
     else:
         await sync_index(telegram_bot, index_file, sticker_set)
 
     # 提示下一步操作
-    console.print("\n[bold dark_green]✔ Initialization completed![/]")
+    console.print("[bold dark_green]✔ Initialization completed![/]")
     console.print(Panel(
-        f"[bold dark_sea_green]Put your stickers in:[/] {sticker_table_dir}\n"
-        f"[bold dark_sea_green]Run 'cd {pack_name}' to enter the pack directory.\n"
-        "[bold dark_sea_green]Then run 'tsticker push' to push your stickers to Telegram.[/]",
-        style="dark_sea_green",
+        f"[bold dark_cyan]Put your stickers in:[/] {sticker_table_dir}\n"
+        f"Run 'cd {pack_name}' to enter the pack directory.\n"
+        "Then run 'tsticker push' to push your stickers to Telegram.",
+        style="dark_cyan",
         title="Next Steps",
+        title_align="left",
         expand=False
     ))
 
@@ -616,7 +613,7 @@ async def sync():
         )
         return
     # 显示当前工作目标
-    console.print(f"[bold steel_blue3]Working on sticker pack: [/] "
+    console.print(f"[bold steel_blue3]> Working on sticker pack: [/] "
                   f"[link=https://t.me/addstickers/{local_sticker.name}]https://t.me/addstickers/{local_sticker.name}[/link]")
     await sync_index(telegram_bot, index_file, cloud_sticker_set=now_sticker_set)
 
@@ -825,7 +822,7 @@ async def push():
                 console.print(f"[bold red]Failed to get sticker set {local_sticker.name}: {e}[/]")
                 return
     console.print(
-        f"[bold steel_blue3]Working on sticker pack:[/] [link=https://t.me/addstickers/{local_sticker.name}]https://t.me/addstickers/{local_sticker.name}[/link]"
+        f"[bold steel_blue3]> Working on sticker pack:[/] [link=https://t.me/addstickers/{local_sticker.name}]https://t.me/addstickers/{local_sticker.name}[/link]"
     )
     try:
         backup_snapshot(index_file)
@@ -853,7 +850,7 @@ async def push():
                 return
     if sticker_set:
         await sync_index(telegram_bot=telegram_bot, index_file=index_file, cloud_sticker_set=sticker_set)
-        console.print("[bold dark_green]🎉 Push and cleanup completed successfully![/]")
+        console.print("[bold dark_green]✔ Push & CleanUp completed![/]")
 
 
 cli.add_command(init)

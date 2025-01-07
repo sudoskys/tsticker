@@ -6,7 +6,7 @@ from io import BytesIO
 from typing import Literal
 
 import emoji
-import requests
+import httpx
 from pydantic import BaseModel, model_validator
 from rich.console import Console
 from telebot.asyncio_helper import session_manager
@@ -109,21 +109,40 @@ async def create_sticker(
 async def check_for_updates():
     try:
         CURRENT_VERSION = metadata.version("tsticker")
-        response = requests.get(PYPI_URL)
-        if response.status_code == 200:
-            package_info = response.json()
-            latest_version = package_info['info']['version']
-            if latest_version != CURRENT_VERSION:
-                release_notes = package_info['releases'].get(latest_version, [])
-                release_info = release_notes[0] if release_notes else {}
-                description = release_info.get('comment_text', '')
-                console.print(
-                    f"[bold yellow]INFO:[/] tsticker {CURRENT_VERSION} is installed, while {latest_version} is available."
-                )
-                if description:
-                    console.print(f"[bold blue]COMMENT:[/]\n{description}")
+
+        # 使用异步 httpx 发送请求
+        async with httpx.AsyncClient() as client:
+            response = await client.get(PYPI_URL)
+
+        # 请求不成功时，直接返回
+        if response.status_code != 200:
+            console.print(f"[bold green]Skipping update check: HTTP {response.status_code}[/]")
+            return
+
+        # 从 JSON 响应中提取所需的信息
+        package_info = response.json()
+        latest_version = package_info.get('info', {}).get('version', "")
+
+        # 如果版本已是最新，直接返回
+        if latest_version == CURRENT_VERSION:
+            return
+
+        # 获取更新说明
+        release_notes = package_info.get('releases', {}).get(latest_version, [])
+        release_info = release_notes[0] if release_notes else {}
+        description = release_info.get('comment_text', '')
+
+        # 打印更新版本信息
+        console.print(
+            f"[blue]INFO:[/] [gray42]tsticker [cyan]{CURRENT_VERSION}[/] is installed, while [cyan]{latest_version}[/] is available.[/]"
+        )
+
+        # 如果提供了 release 的 description，显示正确信息
+        if description:
+            console.print(f"[blue]COMMENT:[/]\n{description}")
+
     except Exception as e:
-        console.print(f"[bold green]Skipping update check: {type(e)}[/]")
+        console.print(f"[blue]Skipping update check: {type(e)}: {e}[/]")
 
 
 async def close_session():
