@@ -118,7 +118,7 @@ def backup_snapshot(index_file: pathlib.Path):
     # 如果快照超过三个，删除最旧的
     while len(snapshots) >= 4:
         deleted_snapshot = snapshots.pop(0)
-        console.print(f"[cyan]!Cleaning up old snapshot:[/] [gray42]{deleted_snapshot}[/]")
+        console.print(f"[cyan]! Cleaning up old snapshot:[/] [gray42]{deleted_snapshot}[/]")
         shutil.rmtree(deleted_snapshot)
     # 创建新的快照
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -294,12 +294,12 @@ async def sync_index(
             ]
     await asyncio.gather(*tasks)
     """
-    with console.status("[bold steel_blue3]Synchronizing index...[/]", spinner='dots') as status:
+    with console.status("[bold cyan]Synchronizing index...[/]", spinner='dots') as status:
         # 不用 asyncio.gather 是因为 Telegram 服务器会Block
         index = 0
         for file_id in to_download:
             index += 1
-            status.update(f"[bold steel_blue3]Synchronizing indexes: {file_id}...[/] {index}/{len(to_download)}")
+            status.update(f"[bold cyan]Synchronizing indexes: {file_id}...[/] {index}/{len(to_download)}")
             await download_and_write_file(
                 telegram_bot=telegram_bot,
                 file_id=cloud_files[file_id].file_id,
@@ -325,7 +325,7 @@ async def sync_index(
 async def logout():
     """Log out."""
     keyring.delete_password(SERVICE_NAME, USERNAME)
-    console.print("[bold yellow]You are now logged out.[/]")
+    console.print("[bold yellow]✔ You are now logged out.[/]")
 
 
 @asyncclick.command()
@@ -344,7 +344,7 @@ async def download(link: str):
     console.print(f"[bold cyan]Preparing to download pack: {pack_name} to {root_download_dir.as_posix()}[/]")
     telegram_bot = AsyncTeleBot(credentials.token)
     await download_sticker_set(pack_name, telegram_bot, root_download_dir)
-    console.print("[bold dark_green]Download completed![/]")
+    console.print("[bold dark_green]✔ Download completed![/]")
 
 
 @asyncclick.command()
@@ -650,6 +650,19 @@ async def push_to_cloud(
         stickers = []
         _index = 0
         _all = len(local_files)
+
+        if _all > 30:
+            console.print(Panel(
+                "Wait a minute! "
+                f"You want to upload {_all} stickers at once, which is too many.\n"
+                f"[dark_red]  Telegram API does not allow oversized requests.[/]\n"
+                f"[dark_red]  Files are expected no more than [blue]30[/], please transfer the extra and retry.[/]",
+                style="red",
+                title=f"Too Many Stickers",
+                title_align="left",
+                expand=False
+            ))
+            return
         with console.status("[bold yellow]Building sticker set...[/]", spinner='dots') as status:
             for sticker_file in local_files.values():
                 _index += 1
@@ -691,6 +704,11 @@ async def push_to_cloud(
                                   )
                 console.print(f"[bold red]Failed to create sticker set: {e}[/]")
                 return False
+            else:
+                console.print(
+                    f"[bold dark_green]✔ Created sticker set: {local_sticker.title}[/]"
+                    f"[grey42]{len(stickers)} stickers created[/]"
+                )
         return True
     # 获取云端文件
     cloud_files = {
@@ -715,28 +733,45 @@ async def push_to_cloud(
             file_unique_id].file_size
     ]
     if local_sticker.title != cloud_sticker_set.title:
-        with console.status("[bold yellow]Updating title...[/]", spinner='dots'):
+        with console.status("[bold steel_blue3]Updating title...[/]", spinner='dots'):
             await limited_request(
                 telegram_bot.set_sticker_set_title(local_sticker.name, local_sticker.title)
             )
-        console.print(f"[bold yellow]Title updated to: {local_sticker.title}[/]")
+        console.print(f"[bold cyan]Title updated to: {local_sticker.title}[/]")
     if to_delete or to_upload or to_fix:
-        console.print("[bold yellow]Changes detected:[/]")
-        console.print(f"[bold yellow]Files to delete:[/] {len(to_delete)}")
-        console.print(f"[bold yellow]Files to upload:[/] {len(to_upload)}")
-        console.print(f"[bold yellow]Files to fix:[/] {len(to_fix)}")
+        console.print("[bold steel_blue3]Changes detected:[/]")
+        console.print(f"[bold gray42]Files to delete:[/] {len(to_delete)}")
+        console.print(f"[bold gray42]Files to upload:[/] {len(to_upload)}")
+        console.print(f"[bold gray42]Files to fix:[/] {len(to_fix)}")
     # 计算最后结果是否超过 120
     if len(cloud_files) - len(to_delete) + len(to_upload) > 120:
         console.print("[bold red]Your wanted operation will exceed the limit of 120 stickers, so it's aborted.[/]")
         return
+    # 如果上传的文件超过 30 个，提示用户
+    if len(to_upload) > 30:
+        console.print(
+            Panel(
+                "Wait a minute! "
+                "[bold yellow]You have a large number of stickers to be uploaded, are you sure you want to operate?[/]\n"
+                "[dark_sea_green]  Don't worry, if the operation fails, you can still synchronize your stickers in the cloud using 'tsticker sync'.[/]\n"
+                "[dark_sea_green]  You can also find a backup at 'snapshot' folder.[/]",
+                style="blue",
+                title=f"Confirm Operation",
+                title_align="left",
+                expand=False
+            )
+        )
+        # 询问用户是否继续
+        if not asyncclick.confirm("Do you want to continue?"):
+            return
     # 删除云端文件
-    with console.status("[bold yellow]Deleting stickers from telegram...[/]", spinner='dots') as status:
+    with console.status("[bold steel_blue3]Deleting stickers from telegram...[/]", spinner='dots') as status:
         _index = 0
         _all = len(to_delete)
         for file_id in to_delete:
             # 更新进度条
             _index += 1
-            status.update(f"[bold yellow]Deleting stickers for all users: {file_id}...[/] {_index}/{_all}")
+            status.update(f"[bold steel_blue3]Deleting stickers for all users: {file_id}...[/] {_index}/{_all}")
             try:
                 success = await limited_request(
                     telegram_bot.delete_sticker_from_set(sticker=file_id)
@@ -745,15 +780,15 @@ async def push_to_cloud(
             except Exception as e:
                 console.print(f"[bold red]Failed to delete sticker: {e}[/]")
             else:
-                console.print(f"[bold dark_green]Deleted sticker: {file_id}[/]")
+                console.print(f"[bold green]Deleted sticker: {file_id}[/]")
 
     # 上传文件到云端
-    with console.status(f"[bold yellow]Uploading sticker...[/]", spinner='dots') as status:
+    with console.status(f"[bold steel_blue3]Uploading sticker...[/]", spinner='dots') as status:
         _index = 0
         _all = len(to_upload)
         for file_name in to_upload:
             _index += 1
-            status.update(f"[bold yellow]Uploading sticker: {file_name}...[/] {_index}/{_all}")
+            status.update(f"[bold steel_blue3]Uploading sticker: {file_name}...[/] {_index}/{_all}")
             sticker_file = local_files[file_name]
             sticker = await create_sticker(sticker_type=local_sticker.sticker_type, sticker_file=sticker_file)
             if sticker:
@@ -765,7 +800,7 @@ async def push_to_cloud(
                     )
                 )
                 if success:
-                    console.print(f"[bold dark_green]Uploaded sticker: {file_name}[/]")
+                    console.print(f"[bold green]Uploaded sticker: {file_name}[/]")
                     # 删除本地文件
                     sticker_file.unlink()
                 else:
@@ -774,14 +809,14 @@ async def push_to_cloud(
                 console.print(f"[bold red]Failed to create sticker for file: {file_name}[/]")
 
     # 更新云端文件
-    with console.status("[bold yellow]Correcting stickers...[/]", spinner='dots') as status:
+    with console.status("[bold steel_blue3]Correcting stickers...[/]", spinner='dots') as status:
         _index = 0
         _all = len(to_fix)
         for local_file_name, cloud_file_id in to_fix:
             _index += 1
             need_delete = local_files[local_file_name]
             status.update(
-                f"[bold yellow]Correcting stickers: {local_file_name}: {cloud_file_id}...[/] {_index}/{_all}")
+                f"[bold steel_blue3]Correcting stickers: {local_file_name}: {cloud_file_id}...[/] {_index}/{_all}")
             try:
                 # 删除本地文件
                 await download_and_write_file(
@@ -795,10 +830,12 @@ async def push_to_cloud(
                 return False
             else:
                 need_delete.unlink(missing_ok=True)
-                console.print(f"[bold dark_green]Corrected sticker: {local_file_name}[/]")
+                console.print(f"[bold green]Corrected sticker: {local_file_name}[/]")
 
     if to_delete or to_upload or to_fix:
-        console.print("[bold dark_green]Changes applied![/]")
+        console.print(
+            f"[bold dark_green]✔ Changes applied![/] [gray42] {len(to_delete)} deleted, {len(to_upload)} uploaded, {len(to_fix)} fixed[/]"
+        )
     return True
 
 

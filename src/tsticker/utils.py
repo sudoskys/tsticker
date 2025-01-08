@@ -60,9 +60,11 @@ class Credentials(BaseModel):
 
 def get_emojis_from_file_name(file_name: str):
     _result = []
-    for _char in file_name:
+    emoji_name = emoji.emojize(file_name, variant="emoji_type")
+    for _char in emoji_name:
         if emoji.is_emoji(_char):
             _result.append(_char)
+
     return _result
 
 
