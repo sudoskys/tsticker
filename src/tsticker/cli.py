@@ -15,7 +15,7 @@ from rich.text import Text
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import StickerSet
 
-from tsticker.const import STICKER_DIR_NAME, SNAPSHOT_DIR_NAME
+from tsticker.const import STICKER_DIR_NAME, SNAPSHOT_DIR_NAME, SNAPSHOT_MAX_COUNT
 from tsticker.core import StickerValidateInput
 from tsticker.core.const import SERVICE_NAME, USERNAME
 from tsticker.core.create import StickerIndexFile, Emote
@@ -115,16 +115,18 @@ def backup_snapshot(index_file: pathlib.Path):
     snapshot_dir = get_snapshot_path(index_file=index_file)
     # 获取现有快照
     snapshots = sorted(snapshot_dir.glob(f"{SNAPSHOT_DIR_NAME}_*"), key=os.path.getmtime)
-    # 如果快照超过三个，删除最旧的
-    while len(snapshots) >= 4:
+    # 如果快照超过10个，删除最旧的
+
+    while len(snapshots) >= SNAPSHOT_MAX_COUNT:
         deleted_snapshot = snapshots.pop(0)
-        console.print(f"[cyan]! Cleaning up old snapshot:[/] [gray42]{deleted_snapshot}[/]")
+        console.print(f"[orange1]! Cleaning up old snapshot:[/] [gray42]{deleted_snapshot}[/]")
         shutil.rmtree(deleted_snapshot)
     # 创建新的快照
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     new_snapshot = snapshot_dir.joinpath(f"{SNAPSHOT_DIR_NAME}_{timestamp}")
     shutil.copytree(sticker_table_dir, new_snapshot)
-    console.print(f"[dark_sea_green]✔ Snapshot backup created successfully at:[/] [gray42]{new_snapshot}[/]")
+    console.print(
+        f"[dark_sea_green]✔ Snapshot backup {len(snapshots) + 1}(MAX {SNAPSHOT_MAX_COUNT}) created successfully at:[/] [gray42]{new_snapshot}[/]")
     console.print(
         f"[dark_sea_green]    You can restore it by copying the contents back to the stickers directory.[/]"
     )
@@ -211,7 +213,7 @@ async def download_sticker_set(
         index = 0
         for sticker in sticker_set.stickers:
             index += 1
-            status.update(f"[bold cyan]Synchronizing indexes: {sticker.file_id}...[/] {index}/{total_stickers}")
+            status.update(f"[bold cyan]Downloading sticker: {sticker.file_id}...[/] {index}/{total_stickers}")
             await download_and_write_file(
                 telegram_bot=telegram_bot,
                 file_id=sticker.file_id,
@@ -622,23 +624,24 @@ async def push_to_cloud(
         telegram_bot: AsyncTeleBot,
         index_file: pathlib.Path,
         cloud_sticker_set: StickerSet | None,
-):
+) -> bool:
     """
     推送本地文件更改到云端，如果不存在则创建。
     :param telegram_bot: 电报机器人
     :param index_file: 本地索引文件
     :param cloud_sticker_set: 云端的贴纸集
+    :return: Is push successful
     """
     try:
         local_sticker = StickerIndexFile.model_validate_json(index_file.read_text())
     except Exception as e:
         console.print(f"[bold red]Index file was corrupted: {e}[/]")
-        return
+        return False
     try:
         sticker_table_dir = get_stickers_path(index_file=index_file)
     except FileNotFoundError as e:
         console.print(f"[bold red]Sticker directory not found: {e}[/]")
-        return
+        return False
     delete_same_name_files(sticker_table_dir)
     # 获取本地文件
     local_files = {
@@ -662,7 +665,7 @@ async def push_to_cloud(
                 title_align="left",
                 expand=False
             ))
-            return
+            return False
         with console.status("[bold yellow]Building sticker set...[/]", spinner='dots') as status:
             for sticker_file in local_files.values():
                 _index += 1
@@ -679,12 +682,12 @@ async def push_to_cloud(
                 stickers.append(sticker)
         if len(stickers) > 30:
             console.print("[bold red]You have more than 30 stickers, which is too large to create a sticker set.[/]")
-            return
+            return False
         if len(stickers) == 0:
             console.print(
                 "[bold red]You have no stickers to create a sticker set. Place your stickers in the stickers folder.[/]"
             )
-            return
+            return False
         with console.status("[bold steel_blue3]Creating sticker set...[/]", spinner='dots'):
             try:
                 success = await limited_request(
@@ -706,8 +709,7 @@ async def push_to_cloud(
                 return False
             else:
                 console.print(
-                    f"[bold dark_green]✔ Created sticker set: {local_sticker.title}[/]"
-                    f"[grey42]{len(stickers)} stickers created[/]"
+                    f"[bold dark_green]✔ Created sticker set: {local_sticker.title}[/] [grey42]{len(stickers)} stickers created[/]"
                 )
         return True
     # 获取云端文件
@@ -746,7 +748,7 @@ async def push_to_cloud(
     # 计算最后结果是否超过 120
     if len(cloud_files) - len(to_delete) + len(to_upload) > 120:
         console.print("[bold red]Your wanted operation will exceed the limit of 120 stickers, so it's aborted.[/]")
-        return
+        return False
     # 如果上传的文件超过 30 个，提示用户
     if len(to_upload) > 30:
         console.print(
@@ -763,7 +765,7 @@ async def push_to_cloud(
         )
         # 询问用户是否继续
         if not asyncclick.confirm("Do you want to continue?"):
-            return
+            return False
     # 删除云端文件
     with console.status("[bold steel_blue3]Deleting stickers from telegram...[/]", spinner='dots') as status:
         _index = 0
@@ -869,11 +871,12 @@ async def push():
 
     try:
         if not await push_to_cloud(telegram_bot=telegram_bot, index_file=index_file, cloud_sticker_set=sticker_set):
-            console.print("[bold red]Push aborted![/]")
+            console.print("[bold red]! Push aborted![/]")
+            return
     except Exception as e:
         from loguru import logger
         logger.exception(e)
-        console.print(f"[bold red]Push failed: {e}[/]")
+        console.print(f"[bold red]! Push failed: {e}[/]")
         return
     # 同步索引文件
     with console.status("[bold yellow]Synchronizing index...[/]", spinner='dots'):
@@ -886,7 +889,14 @@ async def push():
                 console.print(f"[bold red]Failed to get sticker set {local_sticker.name}: {e}[/]")
                 return
     if sticker_set:
-        await sync_index(telegram_bot=telegram_bot, index_file=index_file, cloud_sticker_set=sticker_set)
+        try:
+            await sync_index(telegram_bot=telegram_bot, index_file=index_file, cloud_sticker_set=sticker_set)
+        except Exception as e:
+            console.print(
+                f"[bold dark_red]! Sync failed because {e}[/]\n"
+                f"[bold orange1]  Just DONT push, you can still use 'tsticker sync' to continue synchronize your stickers manually![/]"
+            )
+            return
         console.print("[bold dark_green]✔ Push & CleanUp completed![/]")
 
 
