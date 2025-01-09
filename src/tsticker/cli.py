@@ -119,7 +119,7 @@ def backup_snapshot(index_file: pathlib.Path):
 
     while len(snapshots) >= SNAPSHOT_MAX_COUNT:
         deleted_snapshot = snapshots.pop(0)
-        console.print(f"[orange1]! Cleaning up old snapshot:[/] [gray42]{deleted_snapshot}[/]")
+        console.print(f"[dark_orange]! Cleaning up old snapshot:[/] [gray42]{deleted_snapshot}[/]")
         shutil.rmtree(deleted_snapshot)
     # 创建新的快照
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -570,7 +570,7 @@ async def upon_credentials() -> tuple[Optional[StickerIndexFile], Optional[pathl
     root = pathlib.Path(os.getcwd())
     index_file = root.joinpath("index.json")
     if not index_file.exists():
-        console.print("[bold red]Index file not found. Please sync in an initialized directory.[/]")
+        console.print("[bold red]Index file not found. Please opt in an initialized directory.[/]")
         return None, None, None
     try:
         local_sticker_model = StickerIndexFile.model_validate_json(index_file.read_text())
@@ -894,10 +894,52 @@ async def push():
         except Exception as e:
             console.print(
                 f"[bold dark_red]! Sync failed because {e}[/]\n"
-                f"[bold orange1]  Just DONT push, you can still use 'tsticker sync' to continue synchronize your stickers manually![/]"
+                f"[bold dark_orange]  Just DONT push, you can still use 'tsticker sync' to continue synchronize your stickers manually![/]"
             )
             return
         console.print("[bold dark_green]✔ Push & CleanUp completed![/]")
+
+
+@asyncclick.command()
+async def show():
+    """Show local index file details and sticker pack sticker count."""
+    local_sticker, index_file, telegram_bot = await upon_credentials()
+    # 输出索引信息
+    if local_sticker:
+        console.print(Panel(
+            f"  [cyan]Pack Title:[/] {local_sticker.title}\n"
+            f"  [cyan]Link Name:[/] {local_sticker.name}\n"
+            f"  [cyan]Sticker Type:[/] {local_sticker.sticker_type}\n"
+            f"  [cyan]Bot Owner:[/] {local_sticker.operator_id}",
+            style="grey42",
+            title="StickerSet Info",
+            title_align="left",
+            expand=False
+        ))
+    # 获取贴纸文件夹
+    if not index_file:
+        console.print(f"[bold dark_orange]! Index file not found[/]")
+    if telegram_bot:
+        # 获取云端文件
+        with console.status("[bold cyan]Retrieving sticker set from Telegram...[/]", spinner="dots"):
+            try:
+                sticker_set: Optional[StickerSet] = await limited_request(
+                    telegram_bot.get_sticker_set(local_sticker.name))
+            except Exception as e:
+                if "STICKERSET_INVALID" in str(e):
+                    sticker_set = None
+                else:
+                    console.print(f"[bold red]Failed to get sticker set {local_sticker.name}: {e}[/]")
+                    return
+        if sticker_set:
+            console.print(
+                f"[bold dark_green]✔ Sticker Pack exist in Telegram:[/] {sticker_set.title}\n"
+                f"[bold green4]> Sticker count:[/] {len(sticker_set.stickers)}\n"
+                f"[bold green4]> Sticker type:[/] {sticker_set.sticker_type}\n"
+                f"[bold green4]> Sticker link:[/] [link=https://t.me/addstickers/{sticker_set.name}]https://t.me/addstickers/{sticker_set.name}[/link]"
+            )
+        else:
+            console.print("[bold hot_pink2]! Sticker set not created yet in Telegram[/]")
 
 
 cli.add_command(init)
@@ -906,6 +948,7 @@ cli.add_command(push)
 cli.add_command(sync)
 cli.add_command(trace)
 cli.add_command(download)
+cli.add_command(show)
 
 if __name__ == "__main__":
     cli(_anyio_backend="asyncio")

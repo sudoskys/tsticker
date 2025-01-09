@@ -31,13 +31,14 @@ Simple? Yes, it is!
 | `tsticker help`     | Displays help information for the CLI.                                                           |
 | `tsticker download` | Download any sticker pack from the cloud to your local directory.                                |
 | `tsticker trace`    | Import cloud sticker pack from url.                                                              |
+| `tsticker show`     | Show the sticker pack information.                                                               |
 
 | Example                                                          | Description                                  |
 |------------------------------------------------------------------|----------------------------------------------|
 | `tsticker init -s regular -n 'sticker_id' -t 'My sticker title'` | Initialize a new sticker                     |
 | `tsticker sync`                                                  | Sync sticker pack                            |
 | `tsticker push`                                                  | Push sticker pack                            |
-| `tsticker login -t <token> -u <user>`                            | Log in to Telegram                           |
+| `tsticker login -t <bot_token> -u <human_user_id>`               | Log in to Telegram                           |
 | `tsticker logout`                                                | Log out of Telegram                          |
 | `tsticker download -l <any sticker link>`                        | Download any sticker pack, cant make changes |
 | `tsticker trace -l <sticker link>`                               | Import sticker pack(can make changes)        |
@@ -117,7 +118,8 @@ tsticker push
 even there are auto-resize and auto-convert, there still have some bad input such as too large image, too long video, so
 be careful.
 
-The name of the sticker file can be some direct emoji(like `😄some🧑` ), or you can fill in the name freely, and we will look for the most similar
+The name of the sticker file can be some direct emoji(like `😄some🧑` ), or you can fill in the name freely, and we will
+look for the most similar
 emoji!
 
 ## Limitations of `tsticker`
