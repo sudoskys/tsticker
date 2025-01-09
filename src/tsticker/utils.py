@@ -111,14 +111,12 @@ async def create_sticker(
 async def check_for_updates():
     try:
         CURRENT_VERSION = metadata.version("tsticker")
-
-        # 使用异步 httpx 发送请求
+        # 发送 GET 请求到 PyPI API
         async with httpx.AsyncClient(
-                timeout=5, headers={"User-Agent": "tsticker"}
+                timeout=10, headers={"User-Agent": "tsticker"}
         ) as client:
             response = await client.get(PYPI_URL)
 
-        # 请求不成功时，直接返回
         if response.status_code != 200:
             console.print(f"[bold green]Skipping update check: HTTP {response.status_code}[/]")
             return
