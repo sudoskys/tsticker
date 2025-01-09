@@ -113,7 +113,9 @@ async def check_for_updates():
         CURRENT_VERSION = metadata.version("tsticker")
 
         # 使用异步 httpx 发送请求
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(
+                timeout=5, headers={"User-Agent": "tsticker"}
+        ) as client:
             response = await client.get(PYPI_URL)
 
         # 请求不成功时，直接返回
@@ -144,7 +146,7 @@ async def check_for_updates():
             console.print(f"[blue]COMMENT:[/]\n{description}")
 
     except Exception as e:
-        console.print(f"[blue]Skipping update check: {type(e)}: {e}[/]")
+        console.print(f"[blue]! Skipping update check: {type(e)}: {e}[/]")
 
 
 async def close_session():
