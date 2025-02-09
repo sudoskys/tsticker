@@ -1463,7 +1463,7 @@ files = [
 
 [[package]]
 name = "telegram-sticker-utils"
-version = "0.2.18"
+version = "0.2.21"
 requires_python = "<3.13,>=3.9"
 summary = "easy and fast processing of telegram stickers"
 groups = ["default"]
@@ -1478,8 +1478,8 @@ dependencies = [
     "setuptools>=60.0.0",
 ]
 files = [
-    {file = "telegram_sticker_utils-0.2.18-py3-none-any.whl", hash = "sha256:8f938787bf016e49ddc93704177caebebc59e7f741d3a25d6f737cd59d35ed50"},
-    {file = "telegram_sticker_utils-0.2.18.tar.gz", hash = "sha256:1e9c4975fe0cd221d24b36ed9e048516a0eff377a0029a90fc110603585e394b"},
+    {file = "telegram_sticker_utils-0.2.21-py3-none-any.whl", hash = "sha256:99fb0fb6f883b339338a227413f2e3402cdd6ec0572329999a6027493f9ce192"},
+    {file = "telegram_sticker_utils-0.2.21.tar.gz", hash = "sha256:3c8d56ea398832914fa209bb90ef598afe24c0f95b9f705972c3b6599bbd3dd3"},
 ]
 
 [[package]]
