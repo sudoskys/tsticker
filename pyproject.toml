@@ -1,6 +1,6 @@
 [project]
 name = "tsticker"
-version = "0.1.21"
+version = "0.1.22"
 description = "Telegram sticker management tool"
 authors = [
     { name = "sudoskys", email = "coldlando@hotmail.com" },
@@ -16,7 +16,7 @@ dependencies = [
     "aiohttp>=3.9.5",
     "emoji>=2.12.1",
     "setuptools>=70.3.0",
-    "telegram-sticker-utils>=0.2.18",
+    "telegram-sticker-utils>=0.2.23",
     "httpx>=0.28.1",
 ]
 requires-python = ">=3.9,<3.13"
