@@ -18,6 +18,8 @@ Simple? Yes, it is!
 - Auto select emoji for sticker
 - Auto resize image for sticker
 - Auto convert (gif,webm,mov ...) to webm for animated sticker
+- You can change the name of the pack by changing the title property in index.json.
+> The only thing that can be edited in `index.json` is the `title`
 
 ## 📦 Commands
 
